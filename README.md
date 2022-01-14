@@ -169,16 +169,30 @@ Workers (browsers) have those characteristics:
 ```
 
 1. Connector:
-  - maintain connection status
-  - register, cancellation
-2. Controller:
-  - assign task to executor
-  - start / stop / retry / interrupt
-  - gathering status / result
-3. Executor:
-  - run task
-4. Monitor:
-  - heartbeat / lease
-  - task status
-  - task result
 
+- maintain connection status
+- register, cancellation
+
+2. Controller:
+
+- assign task to executor
+- start / stop / retry / interrupt
+- gathering status / result
+
+3. Executor:
+
+- run task
+
+4. Monitor:
+
+- heartbeat / lease
+- task status
+- task result
+
+### Demo
+
+This demo will try to mine simple virtual coins
+
+#### reference
+
+> https://github.com/dockersamples/dockercoins
