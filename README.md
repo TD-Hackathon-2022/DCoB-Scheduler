@@ -120,7 +120,8 @@ Workers (browsers) have those characteristics:
 
 1. Job: contains job meta and context
   - Job Spilterator: spilt job to tasks and can be called iteratively to get one task
-2. Task Q: queue
+2. Task Q: 
+  - queue
 3. Worker Pool:
   - manage worker's lifecycle
   - monitor workers status
@@ -133,5 +134,51 @@ Workers (browsers) have those characteristics:
   - send cmd (start / stop / retry / interrupt) to worker
 
 ### Worker
+```
+                                           
+                                           
+    Status                  Cmd Task       
+      ^                        |           
+      |                        |           
+      |                        |           
+------|------------------------|-----------
+      |                        |           
+      |                        v           
+ +-------------------------------------+   
+ |                                     |   
+ |                                     |   
+ |             Connector               |   
+ |                                     |   
+ +-------------------------------|-----+   
+        ^                        |         
+        |                        |         
+ +------|-----+           +------v-----+   
+ |            |           |            |   
+ |  Monitor   <-----------| Controller |   
+ |            |           |            |   
+ +------------+           +------^-----+   
+                                 |         
+                                 |         
+                                 |         
+                                 |         
+                          +------v-----+   
+                          |            |   
+                          |  Executor  |   
+                          |            |   
+                          +------------+   
+```
 
+1. Connector:
+  - maintain connection status
+  - register, cancellation
+2. Controller:
+  - assign task to executor
+  - start / stop / retry / interrupt
+  - gathering status / result
+3. Executor:
+  - run task
+4. Monitor:
+  - heartbeat / lease
+  - task status
+  - task result
 
