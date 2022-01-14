@@ -79,6 +79,58 @@ Workers (browsers) have those characteristics:
 
 ## Modules Design
 ### Scheduler
+```
+    +---------------------+                                                                            
+  |-|                     |                                                                            
+|-- |                     |                                                                            
+| | |  Job                |                                    Task Q                                  
+| | |        |------------|     Tasks   +-------------------------------------------------+            
+| | |        |            |         \   |    |    |    |    |    |    |    |    |    |    |  ----|     
+| | |        |            |   --------  |    |    |    |    |    |    |    |    |    |    |      |     
+| | |        | Job        |         /   +-------------------------------------------------+      |     
+| | |        | Spliterator|                                                                      |     
+| | |        |            |                                                                      |     
+| | +--------|---------|--+                                                                      |     
+| -------------------|-|                                       +-----------------+               |     
+---------------------|                                    \    |                 |    /          |     
+                                             |--------------   |     Decider     |   -------------     
+                                             |            /    |                 |    \                
+                                             |                 +-----------------+                     
+                                             |                           |                             
+                                             |                           |                             
+                                             |                          \|/                            
+                                                                         |                             
+                                   +-----------------+         +-----------------+                     
+                                   |                 |         |                 |                     
+                                   |   Worker Pool   |         |   Distributor   |                     
+                                   |                 |         |                 |                     
+                                   +-----------------+         +-----------------+                     
+                                                                                                       
+                                         Status                     Cmd     Task                       
+                                           -                             |                             
+                                          /|\                            |                             
+                                           |                             |                             
+                                 ----------|-----------------------------|---------------              
+                                           |                             |                             
+                                           |                             |                             
+                                           |                             |                             
+                                           |                            \|/                            
+                                           |           Worker            -                             
+```
+
+1. Job: contains job meta and context
+  - Job Spilterator: spilt job to tasks and can be called iteratively to get one task
+2. Task Q: queue
+3. Worker Pool:
+  - manage worker's lifecycle
+  - monitor workers status
+4. Decider:
+  - pop task from task q
+  - apply some workers from worker pool
+  - decide how to assign tasks to workers (by some policy)
+5. Distributer:
+  - distribute task to worker
+  - send cmd (start / stop / retry / interrupt) to worker
 
 ### Worker
 
