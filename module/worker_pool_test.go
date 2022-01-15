@@ -103,3 +103,28 @@ func TestWorkerPool_ShouldNotOccupyWorkerIfNoWorker(t *testing.T) {
 		})
 	})
 }
+
+func TestWorkerPool_ShouldOccupyWorkerThenRelease(t *testing.T) {
+	Convey("given worker pool", t, func() {
+		wp := workerPool{}
+		addr0 := "127.0.0.1:8081"
+		wp.pool.Store(addr0, &worker{id: addr0, status: idle, occupiedBy: &notOccupied})
+
+		Convey("when try occupy a worker", func() {
+			w, found := wp.occupy("job-id-0")
+
+			Convey("then worker1 should be returned", func() {
+				So(found, ShouldBeTrue)
+				So(w.id, ShouldEqual, addr0)
+				So(*w.occupiedBy, ShouldEqual, "job-id-0")
+			})
+
+			wp.release(w)
+
+			Convey("can release", func() {
+				So(w.status, ShouldEqual, idle)
+				So(w.occupiedBy, ShouldEqual, &notOccupied)
+			})
+		})
+	})
+}

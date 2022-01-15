@@ -66,6 +66,7 @@ func (w *workerPool) occupy(jobId string) (wkr *worker, found bool) {
 	return nil, false
 }
 
-func (w *workerPool) release(*worker) {
-
+func (w *workerPool) release(wkr *worker) {
+	wkr.status = idle
+	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&wkr.occupiedBy)), unsafe.Pointer(&notOccupied))
 }
