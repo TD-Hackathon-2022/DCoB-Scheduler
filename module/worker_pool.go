@@ -40,7 +40,7 @@ func (w *workerPool) add(id string) {
 }
 
 func (w *workerPool) remove() {
-
+	panic("not supported yet")
 }
 
 func (w *workerPool) occupy(jobId string) (wkr *worker, found bool) {

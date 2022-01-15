@@ -14,3 +14,6 @@ test:
 
 clean:
 	go clean -i -r -testcache -cache
+
+gen-api:
+	protoc -I=./api --go_out=. ./api/api.proto
