@@ -4,6 +4,7 @@ go 1.17
 
 require (
 	github.com/gorilla/websocket v1.4.2
+	github.com/pkg/errors v0.8.1
 	github.com/smartystreets/goconvey v1.7.2
 	go.uber.org/zap v1.20.0
 	google.golang.org/protobuf v1.27.1
