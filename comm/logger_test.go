@@ -1,15 +1,9 @@
 package comm
 
 import (
-	. "gopkg.in/check.v1"
+	. "github.com/smartystreets/goconvey/convey"
 	"testing"
 )
-
-func Test(t *testing.T) { TestingT(t) }
-
-type T struct{}
-
-var _ = Suite(&T{})
 
 type fakeWriter struct {
 	bBuf []byte
@@ -20,26 +14,30 @@ func (f *fakeWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (t *T) Test_initLogger(c *C) {
-	// given
-	level := "info"
-	writer := &fakeWriter{}
+func Test_initLogger(t *testing.T) {
+	Convey("given info level and fake writer", t, func() {
+		level := "info"
+		writer := &fakeWriter{}
 
-	initLogger(func(l *loggerOption) { l.loggerFile = writer }, WithLoggerLevel(level))
+		Convey("when init logger", func() {
+			initLogger(func(l *loggerOption) { l.loggerFile = writer }, WithLoggerLevel(level))
 
-	// when
-	writer.bBuf = make([]byte, 0)
-	sugarLogger.Infow("info")
-	_ = sugarLogger.Sync()
+			Convey("then info msg will present", func() {
 
-	// then
-	c.Assert(string(writer.bBuf), Not(Equals), "")
+				sugarLogger.Infow("info")
+				_ = sugarLogger.Sync()
 
-	// when
-	writer.bBuf = make([]byte, 0)
-	sugarLogger.Debugw("debug")
-	_ = sugarLogger.Sync()
+				So(string(writer.bBuf), ShouldNotEqual, "")
+			})
 
-	// then
-	c.Assert(string(writer.bBuf), Equals, "")
+			Convey("then debug msg will not present", func() {
+
+				sugarLogger.Debugw("debug")
+				_ = sugarLogger.Sync()
+
+				So(string(writer.bBuf), ShouldEqual, "")
+			})
+		})
+
+	})
 }

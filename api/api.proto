@@ -1,0 +1,50 @@
+syntax = "proto3";
+package api;
+option go_package = "./api";
+
+enum CMD {
+    Register = 0;
+    Close = 1;
+    Status = 2;
+    Assign = 3;
+    Interrupt = 4;
+}
+
+message Msg {
+  CMD cmd = 1;
+  oneof payload {
+      StatusPayload status = 2;
+      AssignPayload assign = 3;
+      InterruptPayload interrupt = 4;
+  }
+}
+
+enum WorkerStatus {
+  Idle = 0;
+  Busy = 1;
+  Closing = 2;
+}
+
+enum TaskStatus {
+  Running = 0;
+  Finished = 1;
+  Error = 2;
+  Interrupted = 3;
+}
+
+message StatusPayload {
+  WorkerStatus work_status = 1;
+  string task_id = 2;
+  TaskStatus task_status = 3;
+  string exec_result = 4;
+}
+
+message AssignPayload {
+  string task_id = 1;
+  string data = 2;
+  string func_id = 3;
+}
+
+message InterruptPayload {
+  string task_id = 1;
+}

@@ -1,7 +1,7 @@
 package main
 
 import (
-	. "DCoB-Scheduler/comm"
+	. "github.com/TD-Hackathon-2022/DCoB-Scheduler/comm"
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"

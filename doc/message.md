@@ -2,12 +2,12 @@
 
 ### Basic Structure
 1. Normal Msg
-As normal msg, we simply use json with two fields:
+As normal msg, we simply use protobuf with two fields:
 - CMD
   - type: [Register(0) | Close(1) | Status(2) | Assign(3) | Interrupt(4)]
 - PAYLOAD
 
-*example msg:*
+*example msg(use json object to simplify reading, same below):*
 ```json
 {
   "CMD": 0,
@@ -80,7 +80,7 @@ Currently, UDF is not supported yet, so we use `funcId` to point built-in functi
 {
   "CMD": 4,
   "PAYLOAD": {
-    "taskId": "task-id",
+    "taskId": "task-id"
   }
 }
 ```
