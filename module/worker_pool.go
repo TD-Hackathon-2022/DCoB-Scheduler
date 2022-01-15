@@ -1,6 +1,10 @@
 package module
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+	"unsafe"
+)
 
 type workerStatus int
 
@@ -10,10 +14,12 @@ const (
 	closing
 )
 
+var notOccupied = "not_occupied"
+
 type worker struct {
 	id         string
 	status     workerStatus
-	occupiedBy string
+	occupiedBy *string
 }
 
 type workerPool struct {
@@ -27,8 +33,9 @@ func (w *workerPool) add(id string) {
 	}
 
 	w.pool.Store(id, &worker{
-		id:     id,
-		status: idle,
+		id:         id,
+		status:     idle,
+		occupiedBy: &notOccupied,
 	})
 }
 
@@ -36,8 +43,27 @@ func (w *workerPool) remove() {
 
 }
 
-func (w *workerPool) occupy() *worker {
-	return nil
+func (w *workerPool) occupy(jobId string) (wkr *worker, found bool) {
+	w.pool.Range(func(_, v interface{}) bool {
+		wkr = v.(*worker)
+		swapped := atomic.CompareAndSwapPointer(
+			(*unsafe.Pointer)(unsafe.Pointer(&wkr.occupiedBy)),
+			unsafe.Pointer(&notOccupied),
+			unsafe.Pointer(&jobId))
+		if swapped {
+			return false
+		}
+
+		// clear wkr
+		wkr = nil
+		return true
+	})
+
+	if wkr != nil {
+		return wkr, true
+	}
+
+	return nil, false
 }
 
 func (w *workerPool) release(*worker) {
