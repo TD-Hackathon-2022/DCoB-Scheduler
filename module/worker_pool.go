@@ -1,6 +1,7 @@
 package module
 
 import (
+	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -20,13 +21,14 @@ type worker struct {
 	id         string
 	status     workerStatus
 	occupiedBy *string
+	ch         chan *api.Msg
 }
 
-type workerPool struct {
+type WorkerPool struct {
 	pool sync.Map
 }
 
-func (w *workerPool) add(id string) {
+func (w *WorkerPool) Add(id string, ch chan *api.Msg) {
 	_, exist := w.pool.Load(id)
 	if exist {
 		return
@@ -36,14 +38,15 @@ func (w *workerPool) add(id string) {
 		id:         id,
 		status:     idle,
 		occupiedBy: &notOccupied,
+		ch:         ch,
 	})
 }
 
-func (w *workerPool) remove() {
+func (w *WorkerPool) remove() {
 	panic("not supported yet")
 }
 
-func (w *workerPool) occupy(jobId string) (wkr *worker, found bool) {
+func (w *WorkerPool) occupy(jobId string) (wkr *worker, found bool) {
 	w.pool.Range(func(_, v interface{}) bool {
 		wkr = v.(*worker)
 		swapped := atomic.CompareAndSwapPointer(
@@ -66,7 +69,11 @@ func (w *workerPool) occupy(jobId string) (wkr *worker, found bool) {
 	return nil, false
 }
 
-func (w *workerPool) release(wkr *worker) {
+func (w *WorkerPool) release(wkr *worker) {
 	wkr.status = idle
 	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&wkr.occupiedBy)), unsafe.Pointer(&notOccupied))
+}
+
+func NewWorkerPool() *WorkerPool {
+	return &WorkerPool{}
 }

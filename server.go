@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
 	. "github.com/TD-Hackathon-2022/DCoB-Scheduler/comm"
+	"github.com/TD-Hackathon-2022/DCoB-Scheduler/module"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
@@ -29,22 +30,55 @@ func handle(w http.ResponseWriter, r *http.Request) {
 	}
 	defer c.Close()
 
+	stopCh := make(chan struct{})
+	writeCh := make(chan *api.Msg)
+	defer close(writeCh)
+	go func() {
+		for msg := range writeCh {
+			marshaledData, err := proto.Marshal(msg)
+			if err != nil {
+				logger.Error(errors.Wrap(err, "marshal error"))
+				break
+			}
+
+			err = c.WriteMessage(websocket.BinaryMessage, marshaledData)
+			if err != nil {
+				logger.Errorf("write: %v", err)
+				break
+			}
+		}
+
+		close(stopCh)
+	}()
+
 	for {
-		mt, recvMsg, err := c.ReadMessage()
+		select {
+		case <-stopCh:
+			break
+		default:
+		}
+
+		mt, inputData, err := c.ReadMessage()
 		if err != nil {
 			logger.Errorf("read: %v", err)
 			break
 		}
 
-		sendMsg, err := dispatch(c.RemoteAddr(), mt, recvMsg)
-		if err != nil {
-			logger.Errorf("dispatch: %v", err)
+		if mt != websocket.BinaryMessage {
+			logger.Error(errors.New("wrong message type"))
 			break
 		}
 
-		err = c.WriteMessage(mt, sendMsg)
+		recvMsg := &api.Msg{}
+		err = proto.Unmarshal(inputData, recvMsg)
 		if err != nil {
-			logger.Errorf("write: %v", err)
+			logger.Error(errors.Wrap(err, "unmarshal error"))
+			break
+		}
+
+		err = dispatch(c.RemoteAddr(), recvMsg, writeCh)
+		if err != nil {
+			logger.Errorf("dispatch: %v", err)
 			break
 		}
 	}
@@ -52,44 +86,39 @@ func handle(w http.ResponseWriter, r *http.Request) {
 
 var echoHandler = func(msg *api.Msg) *api.Msg { return msg }
 
-func dispatch(addr net.Addr, messageType int, data []byte) ([]byte, error) {
-	if messageType != websocket.BinaryMessage {
-		return nil, errors.New("wrong message type")
-	}
-
-	msg := &api.Msg{}
-	err := proto.Unmarshal(data, msg)
-	if err != nil {
-		return nil, errors.Wrap(err, "wrong message structure")
-	}
+func dispatch(addr net.Addr, inputMsg *api.Msg, outputCh chan *api.Msg) error {
 
 	resMsg := &api.Msg{}
-	switch msg.Cmd {
+	switch inputMsg.Cmd {
 	case api.CMD_Register:
-		// TODO: handle
-		resMsg = echoHandler(msg)
+		register(addr, outputCh)
 	case api.CMD_Close:
 		// TODO: handle
-		resMsg = echoHandler(msg)
+		resMsg = echoHandler(inputMsg)
 	case api.CMD_Status:
 		// TODO: handle
-		resMsg = echoHandler(msg)
+		resMsg = echoHandler(inputMsg)
 	case api.CMD_Assign:
 		// TODO: handle
-		resMsg = echoHandler(msg)
+		resMsg = echoHandler(inputMsg)
 	case api.CMD_Interrupt:
 		// TODO: handle
-		resMsg = echoHandler(msg)
+		resMsg = echoHandler(inputMsg)
 	default:
-		resMsg = echoHandler(msg)
+		resMsg = echoHandler(inputMsg)
 	}
 
-	marshaledData, err := proto.Marshal(resMsg)
+	outputCh <- resMsg
+	return nil
+}
 
-	return marshaledData, errors.Wrap(err, "marshal error")
+func register(addr net.Addr, outputCh chan *api.Msg) {
+	workerPool.Add(addr.String(), outputCh)
 }
 
 const addr = ":8080"
+
+var workerPool = module.NewWorkerPool()
 
 func main() {
 	http.HandleFunc("/", handle)

@@ -7,11 +7,11 @@ import (
 
 func TestWorkerPool_ShouldAddWorkerToPool(t *testing.T) {
 	Convey("given worker pool", t, func() {
-		wp := workerPool{}
+		wp := WorkerPool{}
 
 		Convey("when add worker", func() {
 			addr := "127.0.0.1:8081"
-			wp.add(addr)
+			wp.Add(addr, nil)
 
 			Convey("then pool init new worker", func() {
 				w, exist := wp.pool.Load(addr)
@@ -27,12 +27,12 @@ func TestWorkerPool_ShouldAddWorkerToPool(t *testing.T) {
 
 func TestWorkerPool_ShouldDoNothingWhenAddWorkerThatAlreadyInPool(t *testing.T) {
 	Convey("given worker pool", t, func() {
-		wp := workerPool{}
+		wp := WorkerPool{}
 		addr := "127.0.0.1:8081"
 		wp.pool.Store(addr, &worker{id: "fake-worker", status: busy})
 
 		Convey("when add worker", func() {
-			wp.add(addr)
+			wp.Add(addr, nil)
 
 			Convey("then do nothing", func() {
 				w, _ := wp.pool.Load(addr)
@@ -45,7 +45,7 @@ func TestWorkerPool_ShouldDoNothingWhenAddWorkerThatAlreadyInPool(t *testing.T) 
 
 func TestWorkerPool_ShouldOccupyWorker(t *testing.T) {
 	Convey("given worker pool", t, func() {
-		wp := workerPool{}
+		wp := WorkerPool{}
 		addr0 := "127.0.0.1:8081"
 		job0 := "job-0"
 		wp.pool.Store(addr0, &worker{id: addr0, status: idle, occupiedBy: &job0})
@@ -69,7 +69,7 @@ func TestWorkerPool_ShouldOccupyWorker(t *testing.T) {
 
 func TestWorkerPool_ShouldNotOccupyWorkerIfNotAvailable(t *testing.T) {
 	Convey("given worker pool", t, func() {
-		wp := workerPool{}
+		wp := WorkerPool{}
 		addr0 := "127.0.0.1:8081"
 		job0 := "job-0"
 		wp.pool.Store(addr0, &worker{id: addr0, status: idle, occupiedBy: &job0})
@@ -92,7 +92,7 @@ func TestWorkerPool_ShouldNotOccupyWorkerIfNotAvailable(t *testing.T) {
 
 func TestWorkerPool_ShouldNotOccupyWorkerIfNoWorker(t *testing.T) {
 	Convey("given empty worker pool", t, func() {
-		wp := workerPool{}
+		wp := WorkerPool{}
 
 		Convey("when try occupy a worker", func() {
 			_, found := wp.occupy("job-id-3")
@@ -106,7 +106,7 @@ func TestWorkerPool_ShouldNotOccupyWorkerIfNoWorker(t *testing.T) {
 
 func TestWorkerPool_ShouldOccupyWorkerThenRelease(t *testing.T) {
 	Convey("given worker pool", t, func() {
-		wp := workerPool{}
+		wp := WorkerPool{}
 		addr0 := "127.0.0.1:8081"
 		wp.pool.Store(addr0, &worker{id: addr0, status: idle, occupiedBy: &notOccupied})
 
