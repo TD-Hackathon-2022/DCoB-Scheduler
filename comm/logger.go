@@ -66,7 +66,7 @@ type loggerOption struct {
 }
 
 func initLogger(opts ...ApplyLoggerOption) {
-	defaultOpt := &loggerOption{level: zap.InfoLevel}
+	defaultOpt := &loggerOption{level: zap.DebugLevel}
 	for _, opt := range opts {
 		opt(defaultOpt)
 	}

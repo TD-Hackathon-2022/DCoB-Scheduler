@@ -3,11 +3,12 @@ package api;
 option go_package = "./api";
 
 enum CMD {
-    Register = 0;
-    Close = 1;
-    Status = 2;
-    Assign = 3;
-    Interrupt = 4;
+    Unknown = 0;
+    Register = 1;
+    Close = 2;
+    Status = 3;
+    Assign = 4;
+    Interrupt = 5;
 }
 
 message Msg {
@@ -16,6 +17,7 @@ message Msg {
       StatusPayload status = 2;
       AssignPayload assign = 3;
       InterruptPayload interrupt = 4;
+      EmptyPayload empty = 5;
   }
 }
 
@@ -48,3 +50,5 @@ message AssignPayload {
 message InterruptPayload {
   string task_id = 1;
 }
+
+message EmptyPayload {}

@@ -28,7 +28,11 @@ func handle(w http.ResponseWriter, r *http.Request) {
 		logger.Errorf("upgrade: %v", err)
 		return
 	}
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+		logger.Debugf("Connection closed: %s", c.RemoteAddr())
+	}()
+	logger.Debugf("Connection established: %s", c.RemoteAddr())
 
 	stopCh := make(chan struct{})
 	writeCh := make(chan *api.Msg)
@@ -46,6 +50,7 @@ func handle(w http.ResponseWriter, r *http.Request) {
 				logger.Errorf("write: %v", err)
 				break
 			}
+			logger.Debugf("Msg sent: %v", msg)
 		}
 
 		close(stopCh)
@@ -76,6 +81,7 @@ func handle(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
+		logger.Debugf("Msg recieved: %v", recvMsg)
 		err = dispatch(c.RemoteAddr(), recvMsg, writeCh)
 		if err != nil {
 			logger.Errorf("dispatch: %v", err)
