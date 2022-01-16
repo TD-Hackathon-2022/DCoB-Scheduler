@@ -160,6 +160,23 @@ func TestWorker_ShouldNotAssignTaskWhenOccupiedByAnotherJob(t *testing.T) {
 	})
 }
 
+func TestWorker_ShouldNotAssignTaskWhenThereIsARunningTask(t *testing.T) {
+	Convey("given worker", t, func() {
+		job0 := "job0"
+		w := &worker{id: "127.0.0.1:8081", status: WorkerStatus_Idle, occupiedBy: &job0, task: &Task{
+			Ctx: &Context{status: TaskStatus_Running},
+		}}
+
+		Convey("when try assign a task", func() {
+			success := w.assign(&Task{JobId: job0})
+
+			Convey("then assign failed", func() {
+				So(success, ShouldBeFalse)
+			})
+		})
+	})
+}
+
 func TestWorker_ShouldAssignTaskToOutputCh(t *testing.T) {
 	Convey("given worker", t, func() {
 		job0 := "job0"
@@ -186,6 +203,33 @@ func TestWorker_ShouldAssignTaskToOutputCh(t *testing.T) {
 				So(msg.GetAssign().TaskId, ShouldEqual, task0)
 				So(msg.GetAssign().FuncId, ShouldEqual, funcId)
 				So(msg.GetAssign().Data, ShouldEqual, "fake-data")
+			})
+		})
+	})
+}
+
+func TestWorker_ShouldInterruptTaskToOutputCh(t *testing.T) {
+	Convey("given worker", t, func() {
+		job0 := "job0"
+		ch := make(chan *Msg, 1)
+		w := &worker{id: "127.0.0.1:8081", status: WorkerStatus_Busy, occupiedBy: &job0, ch: ch}
+
+		Convey("when try interrupt a task", func() {
+			task0 := "task0"
+			funcId := "hash-func"
+			w.interrupt(&Task{
+				Id:    task0,
+				JobId: job0,
+				Ctx: &Context{
+					initData: "fake-data",
+				},
+				FuncId: funcId,
+			})
+
+			Convey("then assign success", func() {
+				msg := <-ch
+				So(msg.Cmd, ShouldEqual, CMD_Interrupt)
+				So(msg.GetInterrupt().TaskId, ShouldEqual, task0)
 			})
 		})
 	})

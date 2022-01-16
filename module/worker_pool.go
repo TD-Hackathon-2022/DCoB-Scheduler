@@ -32,6 +32,10 @@ func (w *worker) assign(t *Task) (success bool) {
 		return false
 	}
 
+	if w.task != nil && w.task.Ctx.status == TaskStatus_Running {
+		return false
+	}
+
 	w.task = t
 	w.ch <- &Msg{
 		Cmd: CMD_Assign,
@@ -44,6 +48,23 @@ func (w *worker) assign(t *Task) (success bool) {
 		},
 	}
 	return true
+}
+
+func (w *worker) interrupt(t *Task) {
+	occupiedBy := w.atomicGetOccupiedBy()
+	if occupiedBy == &notOccupied || *occupiedBy != t.JobId {
+		return
+	}
+
+	w.task = t
+	w.ch <- &Msg{
+		Cmd: CMD_Interrupt,
+		Payload: &Msg_Interrupt{
+			Interrupt: &InterruptPayload{
+				TaskId: t.Id,
+			},
+		},
+	}
 }
 
 func (w *worker) occupied() bool {
