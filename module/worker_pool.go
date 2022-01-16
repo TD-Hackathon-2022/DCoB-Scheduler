@@ -24,6 +24,48 @@ type worker struct {
 	ch         chan *api.Msg
 }
 
+func (w *worker) assign(t *Task) (success bool) {
+	occupiedBy := (*string)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&w.occupiedBy))))
+
+	if occupiedBy == &notOccupied {
+		return false
+	}
+
+	if *occupiedBy != t.JobId {
+		return false
+	}
+
+	w.ch <- &api.Msg{
+		Cmd: api.CMD_Assign,
+		Payload: &api.Msg_Assign{
+			Assign: &api.AssignPayload{
+				TaskId: t.Id,
+				Data:   t.Ctx.initData.(string),
+				FuncId: t.FuncId,
+			},
+		},
+	}
+	return true
+}
+
+func (w *worker) occupied(jobId string) bool {
+	return atomic.CompareAndSwapPointer(
+		(*unsafe.Pointer)(unsafe.Pointer(&w.occupiedBy)),
+		unsafe.Pointer(&notOccupied),
+		unsafe.Pointer(&jobId))
+}
+
+func (w *worker) occupy(jobId string) (success bool) {
+	return atomic.CompareAndSwapPointer(
+		(*unsafe.Pointer)(unsafe.Pointer(&w.occupiedBy)),
+		unsafe.Pointer(&notOccupied),
+		unsafe.Pointer(&jobId))
+}
+
+func (w *worker) release() {
+	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&w.occupiedBy)), unsafe.Pointer(&notOccupied))
+}
+
 type WorkerPool struct {
 	pool sync.Map
 }
@@ -49,11 +91,7 @@ func (w *WorkerPool) remove() {
 func (w *WorkerPool) occupy(jobId string) (wkr *worker, found bool) {
 	w.pool.Range(func(_, v interface{}) bool {
 		wkr = v.(*worker)
-		swapped := atomic.CompareAndSwapPointer(
-			(*unsafe.Pointer)(unsafe.Pointer(&wkr.occupiedBy)),
-			unsafe.Pointer(&notOccupied),
-			unsafe.Pointer(&jobId))
-		if swapped {
+		if wkr.occupy(jobId) {
 			return false
 		}
 
@@ -71,7 +109,7 @@ func (w *WorkerPool) occupy(jobId string) (wkr *worker, found bool) {
 
 func (w *WorkerPool) release(wkr *worker) {
 	wkr.status = idle
-	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&wkr.occupiedBy)), unsafe.Pointer(&notOccupied))
+	wkr.release()
 }
 
 func NewWorkerPool() *WorkerPool {

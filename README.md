@@ -24,10 +24,12 @@ The qualified job should:
 ### Task
 Task is one piece of job, every task should execute on some workers.
 
-Task abstraction should contains:
+Task abstraction should contain:
+- task id
 - context: stage initial / intermediate / final data
 - function: stateful or stateless procedure that can take input and return output.
-- control handler: responsible for start / stop / retry / interrupt
+  - func id 
+  - control handler: responsible for start / stop / retry / interrupt
 
 ### Resource
 Workers (browsers) have those characteristics:

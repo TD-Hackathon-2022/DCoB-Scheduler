@@ -1,6 +1,7 @@
 package module
 
 import (
+	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
 	. "github.com/smartystreets/goconvey/convey"
 	"testing"
 )
@@ -124,6 +125,67 @@ func TestWorkerPool_ShouldOccupyWorkerThenRelease(t *testing.T) {
 			Convey("can release", func() {
 				So(w.status, ShouldEqual, idle)
 				So(w.occupiedBy, ShouldEqual, &notOccupied)
+			})
+		})
+	})
+}
+
+func TestWorker_ShouldNotAssignTaskWhenNotOccupied(t *testing.T) {
+	Convey("given worker", t, func() {
+		w := &worker{id: "127.0.0.1:8081", status: idle, occupiedBy: &notOccupied}
+
+		Convey("when try assign a task", func() {
+			success := w.assign(&Task{})
+
+			Convey("then assign failed", func() {
+				So(success, ShouldBeFalse)
+			})
+		})
+	})
+}
+
+func TestWorker_ShouldNotAssignTaskWhenOccupiedByAnotherJob(t *testing.T) {
+	Convey("given worker", t, func() {
+		job0 := "job0"
+		w := &worker{id: "127.0.0.1:8081", status: idle, occupiedBy: &job0}
+
+		Convey("when try assign a task", func() {
+			job1 := "job1"
+			success := w.assign(&Task{JobId: job1})
+
+			Convey("then assign failed", func() {
+				So(success, ShouldBeFalse)
+			})
+		})
+	})
+}
+
+func TestWorker_ShouldAssignTaskToOutputCh(t *testing.T) {
+	Convey("given worker", t, func() {
+		job0 := "job0"
+		ch := make(chan *api.Msg, 1)
+		w := &worker{id: "127.0.0.1:8081", status: idle, occupiedBy: &job0, ch: ch}
+
+		Convey("when try assign a task", func() {
+			task0 := "task0"
+			funcId := "hash-func"
+			success := w.assign(&Task{
+				Id:    task0,
+				JobId: job0,
+				Ctx: &Context{
+					initData: "fake-data",
+				},
+				FuncId: funcId,
+			})
+
+			Convey("then assign success", func() {
+				So(success, ShouldBeTrue)
+
+				msg := <-ch
+				So(msg.Cmd, ShouldEqual, api.CMD_Assign)
+				So(msg.GetAssign().TaskId, ShouldEqual, task0)
+				So(msg.GetAssign().FuncId, ShouldEqual, funcId)
+				So(msg.GetAssign().Data, ShouldEqual, "fake-data")
 			})
 		})
 	})
