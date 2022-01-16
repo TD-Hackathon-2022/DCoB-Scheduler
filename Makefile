@@ -1,7 +1,7 @@
 .PHONY: all
 all: clean dev
 
-dev: fmt test
+dev: fmt gen-api test
 
 fmt:
 	go fmt ./...

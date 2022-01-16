@@ -86,34 +86,21 @@ func handle(w http.ResponseWriter, r *http.Request) {
 
 var echoHandler = func(msg *api.Msg) *api.Msg { return msg }
 
-func dispatch(addr net.Addr, inputMsg *api.Msg, outputCh chan *api.Msg) error {
+func dispatch(addr net.Addr, inputMsg *api.Msg, outputCh chan *api.Msg) (err error) {
 
-	resMsg := &api.Msg{}
 	switch inputMsg.Cmd {
 	case api.CMD_Register:
-		register(addr, outputCh)
+		workerPool.Add(addr.String(), outputCh)
 	case api.CMD_Close:
 		// TODO: handle
-		resMsg = echoHandler(inputMsg)
+		outputCh <- echoHandler(inputMsg)
 	case api.CMD_Status:
-		// TODO: handle
-		resMsg = echoHandler(inputMsg)
-	case api.CMD_Assign:
-		// TODO: handle
-		resMsg = echoHandler(inputMsg)
-	case api.CMD_Interrupt:
-		// TODO: handle
-		resMsg = echoHandler(inputMsg)
+		err = workerPool.UpdateStatus(addr.String(), inputMsg.GetStatus())
 	default:
-		resMsg = echoHandler(inputMsg)
+		outputCh <- echoHandler(inputMsg)
 	}
 
-	outputCh <- resMsg
-	return nil
-}
-
-func register(addr net.Addr, outputCh chan *api.Msg) {
-	workerPool.Add(addr.String(), outputCh)
+	return err
 }
 
 const addr = ":8080"
