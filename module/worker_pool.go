@@ -16,13 +16,14 @@ type worker struct {
 	occupiedBy *string
 	task       *Task
 	ch         chan *Msg
+	notify     func(*worker)
 }
 
 func (w *worker) atomicGetOccupiedBy() *string {
 	return (*string)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&w.occupiedBy))))
 }
 
-func (w *worker) assign(t *Task) (success bool) {
+func (w *worker) assign(t *Task, notify func(*worker)) (success bool) {
 	occupiedBy := w.atomicGetOccupiedBy()
 	if occupiedBy == &notOccupied {
 		return false
@@ -36,6 +37,7 @@ func (w *worker) assign(t *Task) (success bool) {
 		return false
 	}
 
+	w.notify = notify
 	w.task = t
 	w.ch <- &Msg{
 		Cmd: CMD_Assign,
@@ -72,6 +74,7 @@ func (w *worker) occupied() bool {
 }
 
 func (w *worker) occupy(jobId string) (success bool) {
+	// TODO: consider closing status
 	return atomic.CompareAndSwapPointer(
 		(*unsafe.Pointer)(unsafe.Pointer(&w.occupiedBy)),
 		unsafe.Pointer(&notOccupied),
@@ -101,18 +104,19 @@ func (w *WorkerPool) Add(id string, ch chan *Msg) {
 }
 
 func (w *WorkerPool) Remove(id string) {
-	wkr, exist := w.pool.Load(id)
+	wkrOri, exist := w.pool.Load(id)
 	if !exist {
 		return
 	}
 
-	task := wkr.(*worker).task
+	wkr := wkrOri.(*worker)
+	task := wkr.task
 	if task != nil {
 		if task.Ctx.status == TaskStatus_Running {
 			task.Ctx.status = TaskStatus_Interrupted
 		}
 
-		task.UpdateNotify()
+		wkr.notify(wkr)
 	}
 
 	w.pool.Delete(id)
@@ -161,7 +165,7 @@ func (w *WorkerPool) UpdateStatus(id string, payload *StatusPayload) error {
 		wkr.task.Ctx.intermediateData = payload.ExecResult
 	}
 
-	wkr.task.UpdateNotify()
+	wkr.notify(wkr)
 	return nil
 }
 
