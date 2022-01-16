@@ -276,3 +276,36 @@ func TestWorkerPool_ShouldUpdateWorkerAndTaskStatus(t *testing.T) {
 		})
 	})
 }
+
+func TestWorkerPool_ShouldRemoveWorkerAndNotifyTask(t *testing.T) {
+	Convey("given worker pool", t, func() {
+		notified := false
+		task := &Task{
+			Id:    "fake-task",
+			JobId: "fake-job-id",
+			Ctx: &Context{
+				status:   TaskStatus_Running,
+				initData: "fake-data",
+			},
+			FuncId: "fake-func-id",
+			UpdateNotify: func() {
+				notified = true
+			},
+		}
+
+		wp := WorkerPool{}
+		addr := "127.0.0.1:8081"
+		wp.pool.Store(addr, &worker{id: addr, status: WorkerStatus_Busy, occupiedBy: &task.JobId, task: task})
+
+		Convey("when remove worker", func() {
+			wp.Remove(addr)
+
+			Convey("then worker updated", func() {
+				_, exist := wp.pool.Load(addr)
+				So(exist, ShouldBeFalse)
+				So(task.Ctx.status, ShouldEqual, TaskStatus_Interrupted)
+				So(notified, ShouldBeTrue)
+			})
+		})
+	})
+}

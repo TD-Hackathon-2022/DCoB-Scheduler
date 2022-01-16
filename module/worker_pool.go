@@ -100,8 +100,22 @@ func (w *WorkerPool) Add(id string, ch chan *Msg) {
 	})
 }
 
-func (w *WorkerPool) remove() {
-	panic("not supported yet")
+func (w *WorkerPool) Remove(id string) {
+	wkr, exist := w.pool.Load(id)
+	if !exist {
+		return
+	}
+
+	task := wkr.(*worker).task
+	if task != nil {
+		if task.Ctx.status == TaskStatus_Running {
+			task.Ctx.status = TaskStatus_Interrupted
+		}
+
+		task.UpdateNotify()
+	}
+
+	w.pool.Delete(id)
 }
 
 func (w *WorkerPool) occupy(jobId string) (wkr *worker, found bool) {

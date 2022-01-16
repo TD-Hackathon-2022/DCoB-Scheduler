@@ -29,6 +29,8 @@ func handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() {
+		// clean worker pool when connection exit
+		workerPool.Remove(c.RemoteAddr().String())
 		_ = c.Close()
 		logger.Debugf("Connection closed: %s", c.RemoteAddr())
 	}()
@@ -93,7 +95,6 @@ func handle(w http.ResponseWriter, r *http.Request) {
 var echoHandler = func(msg *api.Msg) *api.Msg { return msg }
 
 func dispatch(addr net.Addr, inputMsg *api.Msg, outputCh chan *api.Msg) (err error) {
-
 	switch inputMsg.Cmd {
 	case api.CMD_Register:
 		workerPool.Add(addr.String(), outputCh)
