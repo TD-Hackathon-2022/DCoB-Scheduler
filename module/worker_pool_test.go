@@ -1,7 +1,7 @@
 package module
 
 import (
-	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
+	. "github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
 	. "github.com/smartystreets/goconvey/convey"
 	"testing"
 )
@@ -19,7 +19,7 @@ func TestWorkerPool_ShouldAddWorkerToPool(t *testing.T) {
 				So(exist, ShouldBeTrue)
 				So(w, ShouldHaveSameTypeAs, &worker{})
 				So(w.(*worker).id, ShouldEqual, addr)
-				So(w.(*worker).status, ShouldEqual, idle)
+				So(w.(*worker).status, ShouldEqual, WorkerStatus_Idle)
 				So(w.(*worker).occupiedBy, ShouldEqual, &notOccupied)
 			})
 		})
@@ -30,7 +30,7 @@ func TestWorkerPool_ShouldDoNothingWhenAddWorkerThatAlreadyInPool(t *testing.T) 
 	Convey("given worker pool", t, func() {
 		wp := WorkerPool{}
 		addr := "127.0.0.1:8081"
-		wp.pool.Store(addr, &worker{id: "fake-worker", status: busy})
+		wp.pool.Store(addr, &worker{id: "fake-worker", status: WorkerStatus_Busy})
 
 		Convey("when add worker", func() {
 			wp.Add(addr, nil)
@@ -38,7 +38,7 @@ func TestWorkerPool_ShouldDoNothingWhenAddWorkerThatAlreadyInPool(t *testing.T) 
 			Convey("then do nothing", func() {
 				w, _ := wp.pool.Load(addr)
 				So(w.(*worker).id, ShouldEqual, "fake-worker")
-				So(w.(*worker).status, ShouldEqual, busy)
+				So(w.(*worker).status, ShouldEqual, WorkerStatus_Busy)
 			})
 		})
 	})
@@ -49,12 +49,12 @@ func TestWorkerPool_ShouldOccupyWorker(t *testing.T) {
 		wp := WorkerPool{}
 		addr0 := "127.0.0.1:8081"
 		job0 := "job-0"
-		wp.pool.Store(addr0, &worker{id: addr0, status: idle, occupiedBy: &job0})
+		wp.pool.Store(addr0, &worker{id: addr0, status: WorkerStatus_Idle, occupiedBy: &job0})
 		addr1 := "127.0.0.1:8082"
-		wp.pool.Store(addr1, &worker{id: addr1, status: idle, occupiedBy: &notOccupied})
+		wp.pool.Store(addr1, &worker{id: addr1, status: WorkerStatus_Idle, occupiedBy: &notOccupied})
 		addr2 := "127.0.0.1:8083"
 		job1 := "job-1"
-		wp.pool.Store(addr2, &worker{id: addr2, status: busy, occupiedBy: &job1})
+		wp.pool.Store(addr2, &worker{id: addr2, status: WorkerStatus_Idle, occupiedBy: &job1})
 
 		Convey("when try occupy a worker", func() {
 			w, found := wp.occupy("job-id-2")
@@ -73,13 +73,13 @@ func TestWorkerPool_ShouldNotOccupyWorkerIfNotAvailable(t *testing.T) {
 		wp := WorkerPool{}
 		addr0 := "127.0.0.1:8081"
 		job0 := "job-0"
-		wp.pool.Store(addr0, &worker{id: addr0, status: idle, occupiedBy: &job0})
+		wp.pool.Store(addr0, &worker{id: addr0, status: WorkerStatus_Idle, occupiedBy: &job0})
 		addr1 := "127.0.0.1:8082"
 		job1 := "job-1"
-		wp.pool.Store(addr1, &worker{id: addr1, status: idle, occupiedBy: &job1})
+		wp.pool.Store(addr1, &worker{id: addr1, status: WorkerStatus_Idle, occupiedBy: &job1})
 		addr2 := "127.0.0.1:8083"
 		job2 := "job-2"
-		wp.pool.Store(addr2, &worker{id: addr2, status: busy, occupiedBy: &job2})
+		wp.pool.Store(addr2, &worker{id: addr2, status: WorkerStatus_Busy, occupiedBy: &job2})
 
 		Convey("when try occupy a worker", func() {
 			_, found := wp.occupy("job-id-3")
@@ -109,7 +109,7 @@ func TestWorkerPool_ShouldOccupyWorkerThenRelease(t *testing.T) {
 	Convey("given worker pool", t, func() {
 		wp := WorkerPool{}
 		addr0 := "127.0.0.1:8081"
-		wp.pool.Store(addr0, &worker{id: addr0, status: idle, occupiedBy: &notOccupied})
+		wp.pool.Store(addr0, &worker{id: addr0, status: WorkerStatus_Idle, occupiedBy: &notOccupied})
 
 		Convey("when try occupy a worker", func() {
 			w, found := wp.occupy("job-id-0")
@@ -123,7 +123,7 @@ func TestWorkerPool_ShouldOccupyWorkerThenRelease(t *testing.T) {
 			wp.release(w)
 
 			Convey("can release", func() {
-				So(w.status, ShouldEqual, idle)
+				So(w.status, ShouldEqual, WorkerStatus_Idle)
 				So(w.occupiedBy, ShouldEqual, &notOccupied)
 			})
 		})
@@ -132,7 +132,7 @@ func TestWorkerPool_ShouldOccupyWorkerThenRelease(t *testing.T) {
 
 func TestWorker_ShouldNotAssignTaskWhenNotOccupied(t *testing.T) {
 	Convey("given worker", t, func() {
-		w := &worker{id: "127.0.0.1:8081", status: idle, occupiedBy: &notOccupied}
+		w := &worker{id: "127.0.0.1:8081", status: WorkerStatus_Idle, occupiedBy: &notOccupied}
 
 		Convey("when try assign a task", func() {
 			success := w.assign(&Task{})
@@ -147,7 +147,7 @@ func TestWorker_ShouldNotAssignTaskWhenNotOccupied(t *testing.T) {
 func TestWorker_ShouldNotAssignTaskWhenOccupiedByAnotherJob(t *testing.T) {
 	Convey("given worker", t, func() {
 		job0 := "job0"
-		w := &worker{id: "127.0.0.1:8081", status: idle, occupiedBy: &job0}
+		w := &worker{id: "127.0.0.1:8081", status: WorkerStatus_Idle, occupiedBy: &job0}
 
 		Convey("when try assign a task", func() {
 			job1 := "job1"
@@ -163,8 +163,8 @@ func TestWorker_ShouldNotAssignTaskWhenOccupiedByAnotherJob(t *testing.T) {
 func TestWorker_ShouldAssignTaskToOutputCh(t *testing.T) {
 	Convey("given worker", t, func() {
 		job0 := "job0"
-		ch := make(chan *api.Msg, 1)
-		w := &worker{id: "127.0.0.1:8081", status: idle, occupiedBy: &job0, ch: ch}
+		ch := make(chan *Msg, 1)
+		w := &worker{id: "127.0.0.1:8081", status: WorkerStatus_Idle, occupiedBy: &job0, ch: ch}
 
 		Convey("when try assign a task", func() {
 			task0 := "task0"
@@ -182,10 +182,52 @@ func TestWorker_ShouldAssignTaskToOutputCh(t *testing.T) {
 				So(success, ShouldBeTrue)
 
 				msg := <-ch
-				So(msg.Cmd, ShouldEqual, api.CMD_Assign)
+				So(msg.Cmd, ShouldEqual, CMD_Assign)
 				So(msg.GetAssign().TaskId, ShouldEqual, task0)
 				So(msg.GetAssign().FuncId, ShouldEqual, funcId)
 				So(msg.GetAssign().Data, ShouldEqual, "fake-data")
+			})
+		})
+	})
+}
+
+func TestWorkerPool_ShouldUpdateWorkerAndTaskStatus(t *testing.T) {
+	Convey("given worker pool", t, func() {
+		notified := false
+		task := &Task{
+			Id:    "fake-task",
+			JobId: "fake-job-id",
+			Ctx: &Context{
+				status:   TaskStatus_Running,
+				initData: "fake-data",
+			},
+			FuncId: "fake-func-id",
+			UpdateNotify: func() {
+				notified = true
+			},
+		}
+
+		wp := WorkerPool{}
+		addr := "127.0.0.1:8081"
+		wp.pool.Store(addr, &worker{id: addr, status: WorkerStatus_Busy, occupiedBy: &task.JobId, task: task})
+
+		Convey("when update status", func() {
+			status := &StatusPayload{
+				WorkStatus: WorkerStatus_Idle,
+				TaskId:     task.Id,
+				TaskStatus: TaskStatus_Finished,
+				ExecResult: "success",
+			}
+
+			_ = wp.UpdateStatus(addr, status)
+
+			Convey("then worker updated", func() {
+				w, _ := wp.pool.Load(addr)
+				So(w.(*worker).id, ShouldEqual, addr)
+				So(w.(*worker).status, ShouldEqual, WorkerStatus_Idle)
+				So(w.(*worker).task.Ctx.status, ShouldEqual, TaskStatus_Finished)
+				So(w.(*worker).task.Ctx.finalData, ShouldEqual, status.ExecResult)
+				So(notified, ShouldBeTrue)
 			})
 		})
 	})

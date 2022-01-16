@@ -1,32 +1,29 @@
 package module
 
 import (
-	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
+	. "github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
+	"github.com/pkg/errors"
 	"sync"
 	"sync/atomic"
 	"unsafe"
-)
-
-type workerStatus int
-
-const (
-	idle workerStatus = iota
-	busy
-	closing
 )
 
 var notOccupied = "not_occupied"
 
 type worker struct {
 	id         string
-	status     workerStatus
+	status     WorkerStatus
 	occupiedBy *string
-	ch         chan *api.Msg
+	task       *Task
+	ch         chan *Msg
+}
+
+func (w *worker) atomicGetOccupiedBy() *string {
+	return (*string)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&w.occupiedBy))))
 }
 
 func (w *worker) assign(t *Task) (success bool) {
-	occupiedBy := (*string)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&w.occupiedBy))))
-
+	occupiedBy := w.atomicGetOccupiedBy()
 	if occupiedBy == &notOccupied {
 		return false
 	}
@@ -35,10 +32,11 @@ func (w *worker) assign(t *Task) (success bool) {
 		return false
 	}
 
-	w.ch <- &api.Msg{
-		Cmd: api.CMD_Assign,
-		Payload: &api.Msg_Assign{
-			Assign: &api.AssignPayload{
+	w.task = t
+	w.ch <- &Msg{
+		Cmd: CMD_Assign,
+		Payload: &Msg_Assign{
+			Assign: &AssignPayload{
 				TaskId: t.Id,
 				Data:   t.Ctx.initData.(string),
 				FuncId: t.FuncId,
@@ -48,11 +46,8 @@ func (w *worker) assign(t *Task) (success bool) {
 	return true
 }
 
-func (w *worker) occupied(jobId string) bool {
-	return atomic.CompareAndSwapPointer(
-		(*unsafe.Pointer)(unsafe.Pointer(&w.occupiedBy)),
-		unsafe.Pointer(&notOccupied),
-		unsafe.Pointer(&jobId))
+func (w *worker) occupied() bool {
+	return w.atomicGetOccupiedBy() != &notOccupied
 }
 
 func (w *worker) occupy(jobId string) (success bool) {
@@ -70,7 +65,7 @@ type WorkerPool struct {
 	pool sync.Map
 }
 
-func (w *WorkerPool) Add(id string, ch chan *api.Msg) {
+func (w *WorkerPool) Add(id string, ch chan *Msg) {
 	_, exist := w.pool.Load(id)
 	if exist {
 		return
@@ -78,7 +73,7 @@ func (w *WorkerPool) Add(id string, ch chan *api.Msg) {
 
 	w.pool.Store(id, &worker{
 		id:         id,
-		status:     idle,
+		status:     WorkerStatus_Idle,
 		occupiedBy: &notOccupied,
 		ch:         ch,
 	})
@@ -100,16 +95,39 @@ func (w *WorkerPool) occupy(jobId string) (wkr *worker, found bool) {
 		return true
 	})
 
-	if wkr != nil {
-		return wkr, true
-	}
-
-	return nil, false
+	return wkr, wkr != nil
 }
 
 func (w *WorkerPool) release(wkr *worker) {
-	wkr.status = idle
+	wkr.status = WorkerStatus_Idle
 	wkr.release()
+}
+
+func (w *WorkerPool) UpdateStatus(id string, payload *StatusPayload) error {
+	wkrOri, exist := w.pool.Load(id)
+	if !exist {
+		return errors.Errorf("Worker id: %s not regsitered, no context found.", id)
+	}
+
+	wkr := wkrOri.(*worker)
+	if !wkr.occupied() {
+		return errors.Errorf("Worker id: %s not occupied", id)
+	}
+
+	if wkr.task.Id != payload.TaskId {
+		return errors.Errorf("Task id: %s not assigned to worker %s", payload.TaskId, id)
+	}
+
+	wkr.status = payload.WorkStatus
+	wkr.task.Ctx.status = payload.TaskStatus
+	if payload.TaskStatus == TaskStatus_Finished {
+		wkr.task.Ctx.finalData = payload.ExecResult
+	} else {
+		wkr.task.Ctx.intermediateData = payload.ExecResult
+	}
+
+	wkr.task.UpdateNotify()
+	return nil
 }
 
 func NewWorkerPool() *WorkerPool {

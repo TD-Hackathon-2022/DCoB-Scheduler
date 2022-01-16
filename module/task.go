@@ -1,23 +1,17 @@
 package module
 
+import "github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
+
 type Task struct {
-	Id     string
-	JobId  string
-	Ctx    *Context
-	FuncId string
+	Id           string
+	JobId        string
+	Ctx          *Context
+	FuncId       string
+	UpdateNotify func()
 }
 
-type taskStatus int
-
-const (
-	running taskStatus = iota
-	finished
-	err
-	interrupt
-)
-
 type Context struct {
-	status           taskStatus
+	status           api.TaskStatus
 	initData         interface{}
 	intermediateData interface{}
 	finalData        interface{}
