@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
-	. "github.com/TD-Hackathon-2022/DCoB-Scheduler/comm"
+	"github.com/TD-Hackathon-2022/DCoB-Scheduler/comm"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/module"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
@@ -19,7 +19,7 @@ var (
 		},
 	}
 
-	logger = GetLogger()
+	logger = comm.GetLogger()
 )
 
 func handle(w http.ResponseWriter, r *http.Request) {
@@ -58,10 +58,11 @@ func handle(w http.ResponseWriter, r *http.Request) {
 		close(stopCh)
 	}()
 
+Exit:
 	for {
 		select {
 		case <-stopCh:
-			break
+			break Exit
 		default:
 		}
 

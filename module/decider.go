@@ -15,6 +15,7 @@ func (d *Decider) Start() {
 			continue
 		}
 
+		//lint:ignore SA4006 false positive
 		success := wkr.assign(task, d.statusNotify)
 		if !success {
 			// TODO: deal with retry

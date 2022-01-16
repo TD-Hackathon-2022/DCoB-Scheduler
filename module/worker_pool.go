@@ -1,7 +1,7 @@
 package module
 
 import (
-	. "github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
+	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
 	"github.com/pkg/errors"
 	"sync"
 	"sync/atomic"
@@ -12,10 +12,10 @@ var notOccupied = "not_occupied"
 
 type worker struct {
 	id         string
-	status     WorkerStatus
+	status     api.WorkerStatus
 	occupiedBy *string
 	task       *Task
-	ch         chan *Msg
+	ch         chan *api.Msg
 	notify     func(*worker)
 }
 
@@ -33,16 +33,16 @@ func (w *worker) assign(t *Task, notify func(*worker)) (success bool) {
 		return false
 	}
 
-	if w.task != nil && w.task.Ctx.status == TaskStatus_Running {
+	if w.task != nil && w.task.Ctx.status == api.TaskStatus_Running {
 		return false
 	}
 
 	w.notify = notify
 	w.task = t
-	w.ch <- &Msg{
-		Cmd: CMD_Assign,
-		Payload: &Msg_Assign{
-			Assign: &AssignPayload{
+	w.ch <- &api.Msg{
+		Cmd: api.CMD_Assign,
+		Payload: &api.Msg_Assign{
+			Assign: &api.AssignPayload{
 				TaskId: t.Id,
 				Data:   t.Ctx.initData.(string),
 				FuncId: t.FuncId,
@@ -59,10 +59,10 @@ func (w *worker) interrupt(t *Task) {
 	}
 
 	w.task = t
-	w.ch <- &Msg{
-		Cmd: CMD_Interrupt,
-		Payload: &Msg_Interrupt{
-			Interrupt: &InterruptPayload{
+	w.ch <- &api.Msg{
+		Cmd: api.CMD_Interrupt,
+		Payload: &api.Msg_Interrupt{
+			Interrupt: &api.InterruptPayload{
 				TaskId: t.Id,
 			},
 		},
@@ -89,7 +89,7 @@ type WorkerPool struct {
 	pool sync.Map
 }
 
-func (w *WorkerPool) Add(id string, ch chan *Msg) {
+func (w *WorkerPool) Add(id string, ch chan *api.Msg) {
 	_, exist := w.pool.Load(id)
 	if exist {
 		return
@@ -97,7 +97,7 @@ func (w *WorkerPool) Add(id string, ch chan *Msg) {
 
 	w.pool.Store(id, &worker{
 		id:         id,
-		status:     WorkerStatus_Idle,
+		status:     api.WorkerStatus_Idle,
 		occupiedBy: &notOccupied,
 		ch:         ch,
 	})
@@ -112,8 +112,8 @@ func (w *WorkerPool) Remove(id string) {
 	wkr := wkrOri.(*worker)
 	task := wkr.task
 	if task != nil {
-		if task.Ctx.status == TaskStatus_Running {
-			task.Ctx.status = TaskStatus_Interrupted
+		if task.Ctx.status == api.TaskStatus_Running {
+			task.Ctx.status = api.TaskStatus_Interrupted
 		}
 
 		wkr.notify(wkr)
@@ -138,11 +138,11 @@ func (w *WorkerPool) occupy(jobId string) (wkr *worker, found bool) {
 }
 
 func (w *WorkerPool) release(wkr *worker) {
-	wkr.status = WorkerStatus_Idle
+	wkr.status = api.WorkerStatus_Idle
 	wkr.release()
 }
 
-func (w *WorkerPool) UpdateStatus(id string, payload *StatusPayload) error {
+func (w *WorkerPool) UpdateStatus(id string, payload *api.StatusPayload) error {
 	wkrOri, exist := w.pool.Load(id)
 	if !exist {
 		return errors.Errorf("Worker id: %s not regsitered, no context found.", id)
@@ -159,7 +159,7 @@ func (w *WorkerPool) UpdateStatus(id string, payload *StatusPayload) error {
 
 	wkr.status = payload.WorkStatus
 	wkr.task.Ctx.status = payload.TaskStatus
-	if payload.TaskStatus == TaskStatus_Finished {
+	if payload.TaskStatus == api.TaskStatus_Finished {
 		wkr.task.Ctx.finalData = payload.ExecResult
 	} else {
 		wkr.task.Ctx.intermediateData = payload.ExecResult
