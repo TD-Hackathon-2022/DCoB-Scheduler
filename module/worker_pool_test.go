@@ -310,3 +310,58 @@ func TestWorkerPool_ShouldRemoveWorkerAndNotifyTask(t *testing.T) {
 		})
 	})
 }
+
+func TestWorkerPool_ShouldInterruptAllWorkerWithGivenJob(t *testing.T) {
+	Convey("given worker pool", t, func() {
+		jobId0 := "fake-job-id-0"
+		task0 := &Task{
+			Id:    "fake-task-0",
+			JobId: jobId0,
+			Ctx: &Context{
+				Status:   TaskStatus_Running,
+				InitData: "fake-data",
+			},
+			FuncId: "fake-func-id",
+		}
+
+		task1 := &Task{
+			Id:    "fake-task-1",
+			JobId: jobId0,
+			Ctx: &Context{
+				Status:   TaskStatus_Running,
+				InitData: "fake-data",
+			},
+			FuncId: "fake-func-id",
+		}
+
+		jobId1 := "fake-job-id-1"
+		task2 := &Task{
+			Id:    "fake-task-2",
+			JobId: jobId1,
+			Ctx: &Context{
+				Status:   TaskStatus_Running,
+				InitData: "fake-data",
+			},
+			FuncId: "fake-func-id",
+		}
+
+		outputCh := make(chan *Msg, 5)
+		wp := WorkerPool{}
+		addr0 := "127.0.0.1:8081"
+		wp.pool.Store(addr0, &worker{id: addr0, status: WorkerStatus_Busy, occupiedBy: &jobId0, task: task0, ch: outputCh})
+		addr1 := "127.0.0.1:8082"
+		wp.pool.Store(addr1, &worker{id: addr1, status: WorkerStatus_Busy, occupiedBy: &jobId0, task: task1, ch: outputCh})
+		addr2 := "127.0.0.1:8083"
+		wp.pool.Store(addr2, &worker{id: addr2, status: WorkerStatus_Busy, occupiedBy: &jobId1, task: task2, ch: outputCh})
+
+		Convey("when remove worker", func() {
+			wp.InterruptJobTasks(jobId0)
+
+			Convey("then worker updated", func() {
+				So(len(outputCh), ShouldEqual, 2)
+				So((<-outputCh).Cmd, ShouldEqual, CMD_Interrupt)
+				So((<-outputCh).Cmd, ShouldEqual, CMD_Interrupt)
+			})
+		})
+	})
+}

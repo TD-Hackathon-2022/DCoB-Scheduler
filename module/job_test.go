@@ -3,6 +3,7 @@ package module
 import (
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/stretchr/testify/mock"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -57,6 +58,30 @@ func TestJobRunner_SendTask(t *testing.T) {
 
 			Convey("then job q should contains that job", func() {
 				So(runner.currJob, ShouldEqual, job2)
+			})
+		})
+	})
+}
+
+func TestJobRunner_InterruptCurrentJob(t *testing.T) {
+	Convey("given job runner", t, func() {
+		taskQ := make(chan *Task, 1)
+		runner := NewJobRunner(taskQ)
+		go runner.Start()
+		defer runner.ShutDown()
+
+		Convey("try submit a job", func() {
+			job := &MockJob{id: "job0"}
+			job.Mock.On("TryAdvance", mock.Anything).Maybe().Return(false)
+			runner.Submit(job)
+			runtime.Gosched()
+			runner.InterruptCurrentJob()
+			time.Sleep(time.Second)
+
+			Convey("then job q should contains that job", func() {
+				task := <-taskQ
+				So(task, ShouldEqual, poisonTask)
+				So(task.JobId, ShouldEqual, job.id)
 			})
 		})
 	})

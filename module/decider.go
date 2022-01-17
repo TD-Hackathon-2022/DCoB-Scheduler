@@ -9,6 +9,11 @@ type Decider struct {
 
 func (d *Decider) Start() {
 	for task := range d.taskQ {
+		if task == poisonTask {
+			d.pool.InterruptJobTasks(task.JobId)
+			continue
+		}
+
 		wkr, found := d.pool.occupy(task.JobId)
 		if !found {
 			// TODO: deal with retry
