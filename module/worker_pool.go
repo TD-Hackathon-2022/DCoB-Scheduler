@@ -52,18 +52,12 @@ func (w *worker) assign(t *Task, notify func(*worker)) (success bool) {
 	return true
 }
 
-func (w *worker) interrupt(t *Task) {
-	occupiedBy := w.atomicGetOccupiedBy()
-	if occupiedBy == &notOccupied || *occupiedBy != t.JobId {
-		return
-	}
-
-	w.task = t
+func (w *worker) interrupt() {
 	w.ch <- &api.Msg{
 		Cmd: api.CMD_Interrupt,
 		Payload: &api.Msg_Interrupt{
 			Interrupt: &api.InterruptPayload{
-				TaskId: t.Id,
+				TaskId: w.task.Id,
 			},
 		},
 	}

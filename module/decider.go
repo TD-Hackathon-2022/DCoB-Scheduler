@@ -3,7 +3,7 @@ package module
 import "github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
 
 type Decider struct {
-	taskQ chan *Task
+	taskQ <-chan *Task
 	pool  *WorkerPool
 }
 
@@ -45,7 +45,7 @@ func (d *Decider) statusNotify(w *worker) {
 	task.UpdateHandler(task)
 }
 
-func NewDecider(pool *WorkerPool, taskQ chan *Task) *Decider {
+func NewDecider(pool *WorkerPool, taskQ <-chan *Task) *Decider {
 	return &Decider{
 		pool:  pool,
 		taskQ: taskQ,

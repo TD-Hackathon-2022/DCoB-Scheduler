@@ -212,19 +212,22 @@ func TestWorker_ShouldInterruptTaskToOutputCh(t *testing.T) {
 	Convey("given worker", t, func() {
 		job0 := "job0"
 		ch := make(chan *Msg, 1)
-		w := &worker{id: "127.0.0.1:8081", status: WorkerStatus_Busy, occupiedBy: &job0, ch: ch}
+
+		task0 := "task0"
+		funcId := "hash-func"
+		task := &Task{
+			Id:    task0,
+			JobId: job0,
+			Ctx: &Context{
+				initData: "fake-data",
+			},
+			FuncId: funcId,
+		}
+		w := &worker{id: "127.0.0.1:8081", status: WorkerStatus_Busy, occupiedBy: &job0, ch: ch, task: task}
 
 		Convey("when try interrupt a task", func() {
-			task0 := "task0"
-			funcId := "hash-func"
-			w.interrupt(&Task{
-				Id:    task0,
-				JobId: job0,
-				Ctx: &Context{
-					initData: "fake-data",
-				},
-				FuncId: funcId,
-			})
+
+			w.interrupt()
 
 			Convey("then assign success", func() {
 				msg := <-ch
