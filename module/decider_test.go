@@ -14,8 +14,8 @@ func TestDecider_ShouldOccupyAndAssignTaskToWorker(t *testing.T) {
 			Id:    "fake-task",
 			JobId: jobId,
 			Ctx: &Context{
-				status:   TaskStatus_Running,
-				initData: "fake-data",
+				Status:   TaskStatus_Running,
+				InitData: "fake-data",
 			},
 			FuncId: "fake-func-id",
 		}
@@ -52,8 +52,8 @@ func TestDecider_ShouldCallTaskHandlerWhenNotify(t *testing.T) {
 			Id:    "fake-task",
 			JobId: "fake-job-id",
 			Ctx: &Context{
-				status:   TaskStatus_Running,
-				initData: "fake-data",
+				Status:   TaskStatus_Running,
+				InitData: "fake-data",
 			},
 			FuncId: "fake-func-id",
 			UpdateHandler: func(*Task) {
@@ -82,8 +82,8 @@ func TestDecider_ShouldReleaseWorkerWhenNotifyWithTaskNotRunningStatus(t *testin
 			Id:    "fake-task",
 			JobId: "fake-job-id",
 			Ctx: &Context{
-				status:   TaskStatus_Finished,
-				initData: "fake-data",
+				Status:   TaskStatus_Finished,
+				InitData: "fake-data",
 			},
 			FuncId: "fake-func-id",
 			UpdateHandler: func(*Task) {

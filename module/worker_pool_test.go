@@ -164,7 +164,7 @@ func TestWorker_ShouldNotAssignTaskWhenThereIsARunningTask(t *testing.T) {
 	Convey("given worker", t, func() {
 		job0 := "job0"
 		w := &worker{id: "127.0.0.1:8081", status: WorkerStatus_Idle, occupiedBy: &job0, task: &Task{
-			Ctx: &Context{status: TaskStatus_Running},
+			Ctx: &Context{Status: TaskStatus_Running},
 		}}
 
 		Convey("when try assign a task", func() {
@@ -190,7 +190,7 @@ func TestWorker_ShouldAssignTaskToOutputCh(t *testing.T) {
 				Id:    task0,
 				JobId: job0,
 				Ctx: &Context{
-					initData: "fake-data",
+					InitData: "fake-data",
 				},
 				FuncId: funcId,
 			}, func(*worker) {})
@@ -219,7 +219,7 @@ func TestWorker_ShouldInterruptTaskToOutputCh(t *testing.T) {
 			Id:    task0,
 			JobId: job0,
 			Ctx: &Context{
-				initData: "fake-data",
+				InitData: "fake-data",
 			},
 			FuncId: funcId,
 		}
@@ -244,8 +244,8 @@ func TestWorkerPool_ShouldUpdateWorkerAndTaskStatus(t *testing.T) {
 			Id:    "fake-task",
 			JobId: "fake-job-id",
 			Ctx: &Context{
-				status:   TaskStatus_Running,
-				initData: "fake-data",
+				Status:   TaskStatus_Running,
+				InitData: "fake-data",
 			},
 			FuncId: "fake-func-id",
 		}
@@ -271,8 +271,8 @@ func TestWorkerPool_ShouldUpdateWorkerAndTaskStatus(t *testing.T) {
 				w, _ := wp.pool.Load(addr)
 				So(w.(*worker).id, ShouldEqual, addr)
 				So(w.(*worker).status, ShouldEqual, WorkerStatus_Idle)
-				So(w.(*worker).task.Ctx.status, ShouldEqual, TaskStatus_Finished)
-				So(w.(*worker).task.Ctx.finalData, ShouldEqual, status.ExecResult)
+				So(w.(*worker).task.Ctx.Status, ShouldEqual, TaskStatus_Finished)
+				So(w.(*worker).task.Ctx.FinalData, ShouldEqual, status.ExecResult)
 				So(notified, ShouldBeTrue)
 			})
 		})
@@ -286,8 +286,8 @@ func TestWorkerPool_ShouldRemoveWorkerAndNotifyTask(t *testing.T) {
 			Id:    "fake-task",
 			JobId: "fake-job-id",
 			Ctx: &Context{
-				status:   TaskStatus_Running,
-				initData: "fake-data",
+				Status:   TaskStatus_Running,
+				InitData: "fake-data",
 			},
 			FuncId: "fake-func-id",
 		}
@@ -304,7 +304,7 @@ func TestWorkerPool_ShouldRemoveWorkerAndNotifyTask(t *testing.T) {
 			Convey("then worker updated", func() {
 				_, exist := wp.pool.Load(addr)
 				So(exist, ShouldBeFalse)
-				So(task.Ctx.status, ShouldEqual, TaskStatus_Interrupted)
+				So(task.Ctx.Status, ShouldEqual, TaskStatus_Interrupted)
 				So(notified, ShouldBeTrue)
 			})
 		})

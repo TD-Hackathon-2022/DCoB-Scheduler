@@ -7,6 +7,7 @@ type Spliterator interface {
 type Job interface {
 	Spliterator
 	Id() string
+	// TODO: how to force stop ?
 }
 
 type JobRunner struct {

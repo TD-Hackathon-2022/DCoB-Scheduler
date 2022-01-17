@@ -33,7 +33,7 @@ func (w *worker) assign(t *Task, notify func(*worker)) (success bool) {
 		return false
 	}
 
-	if w.task != nil && w.task.Ctx.status == api.TaskStatus_Running {
+	if w.task != nil && w.task.Ctx.Status == api.TaskStatus_Running {
 		return false
 	}
 
@@ -44,7 +44,7 @@ func (w *worker) assign(t *Task, notify func(*worker)) (success bool) {
 		Payload: &api.Msg_Assign{
 			Assign: &api.AssignPayload{
 				TaskId: t.Id,
-				Data:   t.Ctx.initData.(string),
+				Data:   t.Ctx.InitData.(string),
 				FuncId: t.FuncId,
 			},
 		},
@@ -106,8 +106,8 @@ func (w *WorkerPool) Remove(id string) {
 	wkr := wkrOri.(*worker)
 	task := wkr.task
 	if task != nil {
-		if task.Ctx.status == api.TaskStatus_Running {
-			task.Ctx.status = api.TaskStatus_Interrupted
+		if task.Ctx.Status == api.TaskStatus_Running {
+			task.Ctx.Status = api.TaskStatus_Interrupted
 		}
 
 		wkr.notify(wkr)
@@ -152,11 +152,11 @@ func (w *WorkerPool) UpdateStatus(id string, payload *api.StatusPayload) error {
 	}
 
 	wkr.status = payload.WorkStatus
-	wkr.task.Ctx.status = payload.TaskStatus
+	wkr.task.Ctx.Status = payload.TaskStatus
 	if payload.TaskStatus == api.TaskStatus_Finished {
-		wkr.task.Ctx.finalData = payload.ExecResult
+		wkr.task.Ctx.FinalData = payload.ExecResult
 	} else {
-		wkr.task.Ctx.intermediateData = payload.ExecResult
+		wkr.task.Ctx.IntermediateData = payload.ExecResult
 	}
 
 	wkr.notify(wkr)

@@ -30,7 +30,7 @@ func (d *Decider) statusNotify(w *worker) {
 		return
 	}
 
-	switch task.Ctx.status {
+	switch task.Ctx.Status {
 	case api.TaskStatus_Error:
 		fallthrough
 	case api.TaskStatus_Interrupted:

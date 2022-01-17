@@ -11,8 +11,8 @@ type Task struct {
 }
 
 type Context struct {
-	status           api.TaskStatus
-	initData         interface{}
-	intermediateData interface{}
-	finalData        interface{}
+	Status           api.TaskStatus
+	InitData         interface{}
+	IntermediateData interface{}
+	FinalData        interface{}
 }
