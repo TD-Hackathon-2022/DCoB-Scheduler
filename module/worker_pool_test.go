@@ -44,7 +44,7 @@ func TestWorkerPool_ShouldDoNothingWhenAddWorkerThatAlreadyInPool(t *testing.T) 
 	})
 }
 
-func TestWorkerPool_ShouldOccupyWorker(t *testing.T) {
+func TestWorkerPool_ShouldApplyWorker(t *testing.T) {
 	Convey("given worker pool", t, func() {
 		wp := WorkerPool{}
 		addr0 := "127.0.0.1:8081"
@@ -56,8 +56,8 @@ func TestWorkerPool_ShouldOccupyWorker(t *testing.T) {
 		job1 := "job-1"
 		wp.pool.Store(addr2, &worker{id: addr2, status: WorkerStatus_Idle, occupiedBy: &job1})
 
-		Convey("when try occupy a worker", func() {
-			w, found := wp.occupy("job-id-2")
+		Convey("when try apply a worker", func() {
+			w, found := wp.apply("job-id-2")
 
 			Convey("then worker1 should be returned", func() {
 				So(found, ShouldBeTrue)
@@ -68,7 +68,7 @@ func TestWorkerPool_ShouldOccupyWorker(t *testing.T) {
 	})
 }
 
-func TestWorkerPool_ShouldNotOccupyWorkerIfNotAvailable(t *testing.T) {
+func TestWorkerPool_ShouldNotApplyWorkerIfNotAvailable(t *testing.T) {
 	Convey("given worker pool", t, func() {
 		wp := WorkerPool{}
 		addr0 := "127.0.0.1:8081"
@@ -81,8 +81,8 @@ func TestWorkerPool_ShouldNotOccupyWorkerIfNotAvailable(t *testing.T) {
 		job2 := "job-2"
 		wp.pool.Store(addr2, &worker{id: addr2, status: WorkerStatus_Busy, occupiedBy: &job2})
 
-		Convey("when try occupy a worker", func() {
-			_, found := wp.occupy("job-id-3")
+		Convey("when try apply a worker", func() {
+			_, found := wp.apply("job-id-3")
 
 			Convey("then no worker should be returned", func() {
 				So(found, ShouldBeFalse)
@@ -91,12 +91,12 @@ func TestWorkerPool_ShouldNotOccupyWorkerIfNotAvailable(t *testing.T) {
 	})
 }
 
-func TestWorkerPool_ShouldNotOccupyWorkerIfNoWorker(t *testing.T) {
+func TestWorkerPool_ShouldNotApplyWorkerIfNoWorker(t *testing.T) {
 	Convey("given empty worker pool", t, func() {
 		wp := WorkerPool{}
 
-		Convey("when try occupy a worker", func() {
-			_, found := wp.occupy("job-id-3")
+		Convey("when try apply a worker", func() {
+			_, found := wp.apply("job-id-3")
 
 			Convey("then no worker should be returned", func() {
 				So(found, ShouldBeFalse)
@@ -105,14 +105,14 @@ func TestWorkerPool_ShouldNotOccupyWorkerIfNoWorker(t *testing.T) {
 	})
 }
 
-func TestWorkerPool_ShouldOccupyWorkerThenRelease(t *testing.T) {
+func TestWorkerPool_ShouldApplyWorkerThenRelease(t *testing.T) {
 	Convey("given worker pool", t, func() {
 		wp := WorkerPool{}
 		addr0 := "127.0.0.1:8081"
 		wp.pool.Store(addr0, &worker{id: addr0, status: WorkerStatus_Idle, occupiedBy: &notOccupied})
 
-		Convey("when try occupy a worker", func() {
-			w, found := wp.occupy("job-id-0")
+		Convey("when try apply a worker", func() {
+			w, found := wp.apply("job-id-0")
 
 			Convey("then worker1 should be returned", func() {
 				So(found, ShouldBeTrue)
@@ -120,9 +120,9 @@ func TestWorkerPool_ShouldOccupyWorkerThenRelease(t *testing.T) {
 				So(*w.occupiedBy, ShouldEqual, "job-id-0")
 			})
 
-			wp.release(w)
+			wp.returnBack(w)
 
-			Convey("can release", func() {
+			Convey("can returnBack", func() {
 				So(w.status, ShouldEqual, WorkerStatus_Idle)
 				So(w.occupiedBy, ShouldEqual, &notOccupied)
 			})
@@ -135,7 +135,7 @@ func TestWorker_ShouldNotAssignTaskWhenNotOccupied(t *testing.T) {
 		w := &worker{id: "127.0.0.1:8081", status: WorkerStatus_Idle, occupiedBy: &notOccupied}
 
 		Convey("when try assign a task", func() {
-			success := w.assign(&Task{}, func(*worker) {})
+			success := w.assign(&Task{}, func(*worker, *StatusPayload) {}, func(*worker) {})
 
 			Convey("then assign failed", func() {
 				So(success, ShouldBeFalse)
@@ -151,7 +151,7 @@ func TestWorker_ShouldNotAssignTaskWhenOccupiedByAnotherJob(t *testing.T) {
 
 		Convey("when try assign a task", func() {
 			job1 := "job1"
-			success := w.assign(&Task{JobId: job1}, func(*worker) {})
+			success := w.assign(&Task{JobId: job1}, func(*worker, *StatusPayload) {}, func(*worker) {})
 
 			Convey("then assign failed", func() {
 				So(success, ShouldBeFalse)
@@ -168,7 +168,7 @@ func TestWorker_ShouldNotAssignTaskWhenThereIsARunningTask(t *testing.T) {
 		}}
 
 		Convey("when try assign a task", func() {
-			success := w.assign(&Task{JobId: job0}, func(*worker) {})
+			success := w.assign(&Task{JobId: job0}, func(*worker, *StatusPayload) {}, func(*worker) {})
 
 			Convey("then assign failed", func() {
 				So(success, ShouldBeFalse)
@@ -193,7 +193,7 @@ func TestWorker_ShouldAssignTaskToOutputCh(t *testing.T) {
 					InitData: "fake-data",
 				},
 				FuncId: funcId,
-			}, func(*worker) {})
+			}, func(*worker, *StatusPayload) {}, func(*worker) {})
 
 			Convey("then assign success", func() {
 				So(success, ShouldBeTrue)
@@ -238,7 +238,7 @@ func TestWorker_ShouldInterruptTaskToOutputCh(t *testing.T) {
 	})
 }
 
-func TestWorkerPool_ShouldUpdateWorkerAndTaskStatus(t *testing.T) {
+func TestWorkerPool_ShouldUpdateWorkerStatusAndNotify(t *testing.T) {
 	Convey("given worker pool", t, func() {
 		task := &Task{
 			Id:    "fake-task",
@@ -253,7 +253,7 @@ func TestWorkerPool_ShouldUpdateWorkerAndTaskStatus(t *testing.T) {
 		wp := WorkerPool{}
 		addr := "127.0.0.1:8081"
 		notified := false
-		wp.pool.Store(addr, &worker{id: addr, status: WorkerStatus_Busy, occupiedBy: &task.JobId, task: task, notify: func(*worker) {
+		wp.pool.Store(addr, &worker{id: addr, status: WorkerStatus_Busy, occupiedBy: &task.JobId, task: task, statusNotify: func(*worker, *StatusPayload) {
 			notified = true
 		}})
 
@@ -271,15 +271,13 @@ func TestWorkerPool_ShouldUpdateWorkerAndTaskStatus(t *testing.T) {
 				w, _ := wp.pool.Load(addr)
 				So(w.(*worker).id, ShouldEqual, addr)
 				So(w.(*worker).status, ShouldEqual, WorkerStatus_Idle)
-				So(w.(*worker).task.Ctx.Status, ShouldEqual, TaskStatus_Finished)
-				So(w.(*worker).task.Ctx.FinalData, ShouldEqual, status.ExecResult)
 				So(notified, ShouldBeTrue)
 			})
 		})
 	})
 }
 
-func TestWorkerPool_ShouldRemoveWorkerAndNotifyTask(t *testing.T) {
+func TestWorkerPool_ShouldRemoveWorkerAndNotifyExit(t *testing.T) {
 	Convey("given worker pool", t, func() {
 		notified := false
 		task := &Task{
@@ -294,7 +292,7 @@ func TestWorkerPool_ShouldRemoveWorkerAndNotifyTask(t *testing.T) {
 
 		wp := WorkerPool{}
 		addr := "127.0.0.1:8081"
-		wp.pool.Store(addr, &worker{id: addr, status: WorkerStatus_Busy, occupiedBy: &task.JobId, task: task, notify: func(*worker) {
+		wp.pool.Store(addr, &worker{id: addr, status: WorkerStatus_Busy, occupiedBy: &task.JobId, task: task, exitNotify: func(*worker) {
 			notified = true
 		}})
 
@@ -304,7 +302,6 @@ func TestWorkerPool_ShouldRemoveWorkerAndNotifyTask(t *testing.T) {
 			Convey("then worker updated", func() {
 				_, exist := wp.pool.Load(addr)
 				So(exist, ShouldBeFalse)
-				So(task.Ctx.Status, ShouldEqual, TaskStatus_Interrupted)
 				So(notified, ShouldBeTrue)
 			})
 		})

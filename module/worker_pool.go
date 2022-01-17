@@ -11,33 +11,27 @@ import (
 var notOccupied = "not_occupied"
 
 type worker struct {
-	id         string
-	status     api.WorkerStatus
-	occupiedBy *string
-	task       *Task
-	ch         chan *api.Msg
-	notify     func(*worker)
+	id           string
+	status       api.WorkerStatus
+	occupiedBy   *string
+	task         *Task
+	ch           chan *api.Msg
+	statusNotify func(*worker, *api.StatusPayload)
+	exitNotify   func(*worker)
 }
 
 func (w *worker) atomicGetOccupiedBy() *string {
 	return (*string)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&w.occupiedBy))))
 }
 
-func (w *worker) assign(t *Task, notify func(*worker)) (success bool) {
+func (w *worker) assign(t *Task, notify func(*worker, *api.StatusPayload), exitNotify func(*worker)) (success bool) {
 	occupiedBy := w.atomicGetOccupiedBy()
-	if occupiedBy == &notOccupied {
+	if occupiedBy == &notOccupied || *occupiedBy != t.JobId || w.task != nil {
 		return false
 	}
 
-	if *occupiedBy != t.JobId {
-		return false
-	}
-
-	if w.task != nil && w.task.Ctx.Status == api.TaskStatus_Running {
-		return false
-	}
-
-	w.notify = notify
+	w.statusNotify = notify
+	w.exitNotify = exitNotify
 	w.task = t
 	w.ch <- &api.Msg{
 		Cmd: api.CMD_Assign,
@@ -76,6 +70,7 @@ func (w *worker) occupy(jobId string) (success bool) {
 }
 
 func (w *worker) release() {
+	w.task = nil
 	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&w.occupiedBy)), unsafe.Pointer(&notOccupied))
 }
 
@@ -104,19 +99,12 @@ func (w *WorkerPool) Remove(id string) {
 	}
 
 	wkr := wkrOri.(*worker)
-	task := wkr.task
-	if task != nil {
-		if task.Ctx.Status == api.TaskStatus_Running {
-			task.Ctx.Status = api.TaskStatus_Interrupted
-		}
-
-		wkr.notify(wkr)
-	}
+	wkr.exitNotify(wkr)
 
 	w.pool.Delete(id)
 }
 
-func (w *WorkerPool) occupy(jobId string) (wkr *worker, found bool) {
+func (w *WorkerPool) apply(jobId string) (wkr *worker, found bool) {
 	w.pool.Range(func(_, v interface{}) bool {
 		wkr = v.(*worker)
 		if wkr.occupy(jobId) {
@@ -131,7 +119,7 @@ func (w *WorkerPool) occupy(jobId string) (wkr *worker, found bool) {
 	return wkr, wkr != nil
 }
 
-func (w *WorkerPool) release(wkr *worker) {
+func (w *WorkerPool) returnBack(wkr *worker) {
 	wkr.status = api.WorkerStatus_Idle
 	wkr.release()
 }
@@ -147,19 +135,12 @@ func (w *WorkerPool) UpdateStatus(id string, payload *api.StatusPayload) error {
 		return errors.Errorf("Worker id: %s not occupied", id)
 	}
 
-	if wkr.task.Id != payload.TaskId {
+	if wkr.task == nil || (wkr.task.Id != payload.TaskId) {
 		return errors.Errorf("Task id: %s not assigned to worker %s", payload.TaskId, id)
 	}
 
 	wkr.status = payload.WorkStatus
-	wkr.task.Ctx.Status = payload.TaskStatus
-	if payload.TaskStatus == api.TaskStatus_Finished {
-		wkr.task.Ctx.FinalData = payload.ExecResult
-	} else {
-		wkr.task.Ctx.IntermediateData = payload.ExecResult
-	}
-
-	wkr.notify(wkr)
+	wkr.statusNotify(wkr, payload)
 	return nil
 }
 
