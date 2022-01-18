@@ -1,6 +1,9 @@
 package module
 
-import "github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
+import (
+	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
+	"time"
+)
 
 type Decider struct {
 	taskQ <-chan *Task
@@ -17,6 +20,7 @@ func (d *Decider) Start() {
 		wkr, found := d.pool.apply(task.JobId)
 		if !found {
 			// TODO: deal with retry and backoff policy, this will BURN CPU when no worker available!!!
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 
