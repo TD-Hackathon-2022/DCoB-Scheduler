@@ -4,7 +4,7 @@ import (
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/comm"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/module"
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
@@ -16,15 +16,22 @@ var (
 	log = comm.GetLogger()
 )
 
-const addr = ":8080"
+const (
+	addr             = ":8080"
+	workerConnectUrl = "/connect"
+)
 
 func StartServer() {
-	workerHandler := NewWorkerHandler()
+	wh := NewWorkerHandler()
 
-	router := mux.NewRouter()
-	router.HandleFunc("/connect", workerHandler.handle)
+	router := gin.Default()
+	router.GET(workerConnectUrl, func(c *gin.Context) { wh.handle(c.Writer, c.Request) })
 
-	log.Fatal(http.ListenAndServe(addr, router))
+	svr := &http.Server{
+		Addr:    addr,
+		Handler: router,
+	}
+	log.Fatal(svr.ListenAndServe())
 }
 
 type workerHandler struct {
