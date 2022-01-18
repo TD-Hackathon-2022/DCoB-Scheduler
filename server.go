@@ -30,7 +30,7 @@ const (
 	adminShutdownUrl         = "/admin/shutdown"
 	adminRunMineJobUrl       = "/admin/job/run-mine"
 	adminInterruptCurrJobUrl = "/admin/job/interrupt-curr"
-	difficulty               = 3
+	difficulty               = 1
 )
 
 func BuildServer(wh *workerHandler, ah *adminHandler) *http.Server {
