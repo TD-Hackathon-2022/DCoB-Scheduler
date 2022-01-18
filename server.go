@@ -1,15 +1,21 @@
 package main
 
 import (
+	"context"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/comm"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/module"
+	"github.com/TD-Hackathon-2022/DCoB-Scheduler/module/job"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 var (
@@ -17,21 +23,28 @@ var (
 )
 
 const (
-	addr             = ":8080"
-	workerConnectUrl = "/connect"
+	addr                     = ":8080"
+	workerConnectUrl         = "/connect"
+	taskQueueCapacity        = 128
+	adminStartUrl            = "/admin/start"
+	adminShutdownUrl         = "/admin/shutdown"
+	adminRunMineJobUrl       = "/admin/job/run-mine"
+	adminInterruptCurrJobUrl = "/admin/job/interrupt-curr"
+	difficulty               = 3
 )
 
-func StartServer() {
-	wh := NewWorkerHandler()
-
+func BuildServer(wh *workerHandler, ah *adminHandler) *http.Server {
 	router := gin.Default()
 	router.GET(workerConnectUrl, func(c *gin.Context) { wh.handle(c.Writer, c.Request) })
+	router.POST(adminStartUrl, func(c *gin.Context) { ah.start(c.Writer, c.Request) })
+	router.POST(adminShutdownUrl, func(c *gin.Context) { ah.shutdown(c.Writer, c.Request) })
+	router.POST(adminRunMineJobUrl, func(c *gin.Context) { ah.runMinerJob(c.Writer, c.Request) })
+	router.POST(adminInterruptCurrJobUrl, func(c *gin.Context) { ah.interruptCurrentJob(c.Writer, c.Request) })
 
-	svr := &http.Server{
+	return &http.Server{
 		Addr:    addr,
 		Handler: router,
 	}
-	log.Fatal(svr.ListenAndServe())
 }
 
 type workerHandler struct {
@@ -122,15 +135,63 @@ func (h *workerHandler) dispatch(addr net.Addr, inputMsg *api.Msg, outputCh chan
 	return err
 }
 
-func NewWorkerHandler() *workerHandler {
+func NewWorkerHandler(pool *module.WorkerPool) *workerHandler {
 	return &workerHandler{
-		pool: module.NewWorkerPool(),
+		pool: pool,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
 		},
 	}
 }
 
+type adminHandler struct {
+	jobRunner *module.JobRunner
+}
+
+func (h *adminHandler) start(_ http.ResponseWriter, _ *http.Request) {
+	go h.jobRunner.Start()
+}
+
+func (h *adminHandler) shutdown(_ http.ResponseWriter, _ *http.Request) {
+	h.jobRunner.ShutDown()
+}
+
+func (h *adminHandler) runMinerJob(_ http.ResponseWriter, _ *http.Request) {
+	h.jobRunner.Submit(job.NewHashMiner(difficulty))
+}
+
+func (h *adminHandler) interruptCurrentJob(_ http.ResponseWriter, _ *http.Request) {
+	h.jobRunner.InterruptCurrentJob()
+}
+
+func NewAdminHandler(taskQ chan<- *module.Task, store module.JobStore) *adminHandler {
+	return &adminHandler{
+		jobRunner: module.NewJobRunner(taskQ, store),
+	}
+}
+
 func main() {
-	StartServer()
+	taskQ := make(chan *module.Task, taskQueueCapacity)
+	pool := module.NewWorkerPool()
+	decider := module.NewDecider(pool, taskQ)
+	go decider.Start()
+
+	store := module.NewSimpleStore()
+	svr := BuildServer(
+		NewWorkerHandler(pool),
+		NewAdminHandler(taskQ, store))
+
+	go log.Fatal(svr.ListenAndServe())
+
+	waitToShutdown(svr)
+}
+
+func waitToShutdown(server *http.Server) {
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
+	<-done
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = server.Shutdown(ctx)
 }

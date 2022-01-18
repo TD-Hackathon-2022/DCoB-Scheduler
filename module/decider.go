@@ -16,7 +16,7 @@ func (d *Decider) Start() {
 
 		wkr, found := d.pool.apply(task.JobId)
 		if !found {
-			// TODO: deal with retry
+			// TODO: deal with retry and backoff policy, this will BURN CPU when no worker available!!!
 			continue
 		}
 

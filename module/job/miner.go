@@ -2,12 +2,15 @@ package job
 
 import (
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
+	"github.com/TD-Hackathon-2022/DCoB-Scheduler/comm"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/module"
 	"math/rand"
 	"strconv"
 	"sync"
 	"sync/atomic"
 )
+
+var log = comm.GetLogger()
 
 type HashMiner struct {
 	id         string
@@ -53,6 +56,7 @@ func (h *HashMiner) handleUpdate(task *module.Task) {
 		h.resultLock.Lock()
 		defer h.resultLock.Unlock()
 		h.resultMap[task.Id] = task.Ctx.FinalData.(string)
+		log.Infof("Miner received reslt: [%s] : %s", task.Id, h.resultMap[task.Id])
 	}
 }
 
