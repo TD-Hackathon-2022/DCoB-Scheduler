@@ -9,12 +9,14 @@ type Spliterator interface {
 type Job interface {
 	Spliterator
 	Id() string
+	GetResult() map[string]interface{}
 }
 
 var poisonTask = &Task{}
 
 type JobRunner struct {
 	jobQ           chan Job
+	store          JobStore
 	currJob        Job
 	taskQ          chan<- *Task
 	interruptJobCh chan struct{}
@@ -42,6 +44,7 @@ Exit:
 			break Exit
 		case job := <-j.jobQ:
 			j.currJob = job
+			j.store.Store(job)
 			for {
 				select {
 				case <-j.interruptJobCh:
@@ -78,9 +81,10 @@ func (j *JobRunner) ShutDown() {
 	}
 }
 
-func NewJobRunner(taskQ chan<- *Task) *JobRunner {
+func NewJobRunner(taskQ chan<- *Task, store JobStore) *JobRunner {
 	return &JobRunner{
 		jobQ:           make(chan Job, 16),
+		store:          store,
 		taskQ:          taskQ,
 		interruptJobCh: make(chan struct{}),
 		stopCh:         make(chan struct{}),

@@ -4,21 +4,33 @@ import (
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/module"
 	"math/rand"
-	"reflect"
 	"strconv"
+	"sync"
 	"sync/atomic"
 )
 
 type HashMiner struct {
-	id           string
-	taskCnt      uint64
-	funcId       string
-	difficulty   int
-	resultStream chan string
+	id         string
+	taskCnt    uint64
+	funcId     string
+	difficulty int
+	resultLock sync.Mutex
+	resultMap  map[string]string
 }
 
 func (h *HashMiner) Id() string {
 	return h.id
+}
+
+func (h *HashMiner) GetResult() map[string]interface{} {
+	res := make(map[string]interface{})
+	h.resultLock.Lock()
+	defer h.resultLock.Unlock()
+	for k, v := range h.resultMap {
+		res[k] = v
+	}
+
+	return res
 }
 
 func (h *HashMiner) TryAdvance(fn func(task *module.Task)) (finished bool) {
@@ -38,17 +50,19 @@ func (h *HashMiner) TryAdvance(fn func(task *module.Task)) (finished bool) {
 
 func (h *HashMiner) handleUpdate(task *module.Task) {
 	if task.Ctx.Status == api.TaskStatus_Finished {
-		h.resultStream <- task.Ctx.FinalData.(string)
+		h.resultLock.Lock()
+		defer h.resultLock.Unlock()
+		h.resultMap[task.Id] = task.Ctx.FinalData.(string)
 	}
 }
 
-func NewHashMiner(difficulty int, resultStream chan string) module.Job {
+func NewHashMiner(difficulty int) module.Job {
 	h := &HashMiner{
-		funcId:       "hash-miner",
-		difficulty:   difficulty,
-		resultStream: resultStream,
+		funcId:     "hash-miner",
+		difficulty: difficulty,
+		resultMap:  make(map[string]string),
 	}
 
-	h.id = reflect.TypeOf(*h).Name() + "-" + strconv.Itoa(rand.Int())
+	h.id = "HashMiner-" + strconv.Itoa(rand.Int())
 	return h
 }

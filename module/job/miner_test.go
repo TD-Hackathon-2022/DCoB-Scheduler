@@ -10,8 +10,7 @@ import (
 
 func TestHashMiner_ShouldCreateTaskAndOutputResult(t *testing.T) {
 	Convey("given hash miner", t, func() {
-		output := make(chan string, 2)
-		miner := NewHashMiner(2, output)
+		miner := NewHashMiner(2)
 
 		Convey("when try advance", func() {
 			tasks := make([]*module.Task, 0, 2)
@@ -32,9 +31,11 @@ func TestHashMiner_ShouldCreateTaskAndOutputResult(t *testing.T) {
 			Convey("then get output", func() {
 				So(strings.Contains(tasks[0].Id, "-task-1"), ShouldBeTrue)
 				So(strings.Contains(tasks[1].Id, "-task-2"), ShouldBeTrue)
-				So(len(output), ShouldEqual, 2)
-				So(<-output, ShouldEqual, "006c6f636b436861696ee3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
-				So(<-output, ShouldEqual, "006c6f636b436861696ee3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+
+				res := miner.GetResult()
+				So(res[tasks[0].Id], ShouldEqual, "006c6f636b436861696ee3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+				So(res[tasks[1].Id], ShouldEqual, "006c6f636b436861696ee3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+				So(len(res), ShouldEqual, 2)
 			})
 		})
 	})

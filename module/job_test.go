@@ -22,9 +22,13 @@ func (f *MockJob) TryAdvance(fn func(task *Task)) bool {
 	return args.Get(0).(bool)
 }
 
+func (f *MockJob) GetResult() map[string]interface{} {
+	return make(map[string]interface{})
+}
+
 func TestJobRunner_Submit(t *testing.T) {
 	Convey("given job runner", t, func() {
-		runner := NewJobRunner(make(chan *Task))
+		runner := NewJobRunner(make(chan *Task), &simpleStore{})
 
 		Convey("try submit a job", func() {
 			job := &MockJob{}
@@ -40,7 +44,7 @@ func TestJobRunner_Submit(t *testing.T) {
 
 func TestJobRunner_SendTask(t *testing.T) {
 	Convey("given job runner", t, func() {
-		runner := NewJobRunner(make(chan *Task))
+		runner := NewJobRunner(make(chan *Task), &simpleStore{})
 		go runner.Start()
 		defer runner.ShutDown()
 
@@ -66,7 +70,7 @@ func TestJobRunner_SendTask(t *testing.T) {
 func TestJobRunner_InterruptCurrentJob(t *testing.T) {
 	Convey("given job runner", t, func() {
 		taskQ := make(chan *Task, 1)
-		runner := NewJobRunner(taskQ)
+		runner := NewJobRunner(taskQ, &simpleStore{})
 		go runner.Start()
 		defer runner.ShutDown()
 
