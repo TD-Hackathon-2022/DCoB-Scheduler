@@ -99,7 +99,9 @@ func (w *WorkerPool) Remove(id string) {
 	}
 
 	wkr := wkrOri.(*worker)
-	wkr.exitNotify(wkr)
+	if wkr.occupied() {
+		wkr.exitNotify(wkr)
+	}
 
 	w.pool.Delete(id)
 }

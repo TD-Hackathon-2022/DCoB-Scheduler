@@ -4,118 +4,126 @@ import (
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/comm"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/module"
+	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
-	"log"
 	"net"
 	"net/http"
 )
 
 var (
-	upgrader = websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
-	}
-
-	logger = comm.GetLogger()
+	log = comm.GetLogger()
 )
 
-func handle(w http.ResponseWriter, r *http.Request) {
-	c, err := upgrader.Upgrade(w, r, nil)
+const addr = ":8080"
+
+func StartServer() {
+	workerHandler := NewWorkerHandler()
+
+	router := mux.NewRouter()
+	router.HandleFunc("/connect", workerHandler.handle)
+
+	log.Fatal(http.ListenAndServe(addr, router))
+}
+
+type workerHandler struct {
+	pool     *module.WorkerPool
+	upgrader websocket.Upgrader
+}
+
+func (h *workerHandler) handle(w http.ResponseWriter, r *http.Request) {
+	c, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		logger.Errorf("upgrade: %v", err)
+		log.Errorf("upgrade: %v", err)
 		return
 	}
 	defer func() {
 		// clean worker pool when connection exit
-		workerPool.Remove(c.RemoteAddr().String())
+		h.pool.Remove(c.RemoteAddr().String())
 		_ = c.Close()
-		logger.Debugf("Connection closed: %s", c.RemoteAddr())
+		log.Debugf("Connection closed: %s", c.RemoteAddr())
 	}()
-	logger.Debugf("Connection established: %s", c.RemoteAddr())
+	log.Debugf("Connection established: %s", c.RemoteAddr())
 
-	stopCh := make(chan struct{})
 	writeCh := make(chan *api.Msg)
 	defer close(writeCh)
-	go func() {
-		for msg := range writeCh {
-			marshaledData, err := proto.Marshal(msg)
-			if err != nil {
-				logger.Error(errors.Wrap(err, "marshal error"))
-				break
-			}
 
-			err = c.WriteMessage(websocket.BinaryMessage, marshaledData)
-			if err != nil {
-				logger.Errorf("write: %v", err)
-				break
-			}
-			logger.Debugf("Msg sent: %v", msg)
+	go h.handleSend(c, writeCh)
+	h.handleRecv(c, writeCh)
+}
+
+func (h *workerHandler) handleSend(c *websocket.Conn, writeCh chan *api.Msg) {
+	for msg := range writeCh {
+		marshaledData, err := proto.Marshal(msg)
+		if err != nil {
+			log.Error(errors.Wrap(err, "marshal error"))
+			break
 		}
 
-		close(stopCh)
-	}()
+		err = c.WriteMessage(websocket.BinaryMessage, marshaledData)
+		if err != nil {
+			log.Errorf("write: %v", err)
+			break
+		}
+		log.Debugf("Msg sent: %v", msg)
+	}
+}
 
-Exit:
+func (h *workerHandler) handleRecv(c *websocket.Conn, writeCh chan *api.Msg) {
 	for {
-		select {
-		case <-stopCh:
-			break Exit
-		default:
-		}
-
 		mt, inputData, err := c.ReadMessage()
 		if err != nil {
-			logger.Errorf("read: %v", err)
-			break
+			log.Errorf("read: %v", err)
+			return
 		}
 
 		if mt != websocket.BinaryMessage {
-			logger.Error(errors.New("wrong message type"))
-			break
+			log.Error(errors.New("wrong message type"))
+			return
 		}
 
 		recvMsg := &api.Msg{}
 		err = proto.Unmarshal(inputData, recvMsg)
 		if err != nil {
-			logger.Error(errors.Wrap(err, "unmarshal error"))
-			break
+			log.Error(errors.Wrap(err, "unmarshal error"))
+			return
 		}
 
-		logger.Debugf("Msg recieved: %v", recvMsg)
-		err = dispatch(c.RemoteAddr(), recvMsg, writeCh)
+		log.Debugf("Msg recieved: %v", recvMsg)
+		err = h.dispatch(c.RemoteAddr(), recvMsg, writeCh)
 		if err != nil {
-			logger.Errorf("dispatch: %v", err)
-			break
+			log.Errorf("dispatch: %v", err)
+			return
 		}
 	}
 }
 
-var echoHandler = func(msg *api.Msg) *api.Msg { return msg }
-
-func dispatch(addr net.Addr, inputMsg *api.Msg, outputCh chan *api.Msg) (err error) {
+func (h *workerHandler) dispatch(addr net.Addr, inputMsg *api.Msg, outputCh chan *api.Msg) (err error) {
 	switch inputMsg.Cmd {
 	case api.CMD_Register:
-		workerPool.Add(addr.String(), outputCh)
+		h.pool.Add(addr.String(), outputCh)
 	case api.CMD_Close:
 		// TODO: handle
-		outputCh <- echoHandler(inputMsg)
+		outputCh <- inputMsg
 	case api.CMD_Status:
-		err = workerPool.UpdateStatus(addr.String(), inputMsg.GetStatus())
+		err = h.pool.UpdateStatus(addr.String(), inputMsg.GetStatus())
 	default:
-		outputCh <- echoHandler(inputMsg)
+		outputCh <- inputMsg
 	}
 
 	return err
 }
 
-const addr = ":8080"
-
-var workerPool = module.NewWorkerPool()
+func NewWorkerHandler() *workerHandler {
+	return &workerHandler{
+		pool: module.NewWorkerPool(),
+		upgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool { return true },
+		},
+	}
+}
 
 func main() {
-	http.HandleFunc("/", handle)
-	log.Fatal(http.ListenAndServe(addr, nil))
+	StartServer()
 }
