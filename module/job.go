@@ -81,6 +81,14 @@ func (j *JobRunner) ShutDown() {
 	}
 }
 
+func (j *JobRunner) GetJobById(jobId string) (job Job, exist bool) {
+	v, exist := j.store.Load(jobId)
+	if !exist {
+		return nil, false
+	}
+	return v.(Job), true
+}
+
 func NewJobRunner(taskQ chan<- *Task, store JobStore) *JobRunner {
 	return &JobRunner{
 		jobQ:           make(chan Job, 16),

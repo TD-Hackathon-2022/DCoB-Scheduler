@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/comm"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/module"
@@ -10,10 +12,12 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 )
@@ -30,16 +34,17 @@ const (
 	adminShutdownUrl         = "/admin/shutdown"
 	adminRunMineJobUrl       = "/admin/job/run-mine"
 	adminInterruptCurrJobUrl = "/admin/job/interrupt-curr"
-	difficulty               = 2
+	adminGetJobResultUrl     = "/admin/job/:id"
 )
 
 func BuildServer(wh *workerHandler, ah *adminHandler) *http.Server {
 	router := gin.Default()
 	router.GET(workerConnectUrl, func(c *gin.Context) { wh.handle(c.Writer, c.Request) })
-	router.POST(adminStartUrl, func(c *gin.Context) { ah.start(c.Writer, c.Request) })
-	router.POST(adminShutdownUrl, func(c *gin.Context) { ah.shutdown(c.Writer, c.Request) })
-	router.POST(adminRunMineJobUrl, func(c *gin.Context) { ah.runMinerJob(c.Writer, c.Request) })
-	router.POST(adminInterruptCurrJobUrl, func(c *gin.Context) { ah.interruptCurrentJob(c.Writer, c.Request) })
+	router.POST(adminStartUrl, ah.start)
+	router.POST(adminShutdownUrl, ah.shutdown)
+	router.POST(adminRunMineJobUrl, ah.runMinerJob)
+	router.POST(adminInterruptCurrJobUrl, ah.interruptCurrentJob)
+	router.GET(adminGetJobResultUrl, ah.getJobInfo)
 
 	return &http.Server{
 		Addr:    addr,
@@ -148,20 +153,54 @@ type adminHandler struct {
 	jobRunner *module.JobRunner
 }
 
-func (h *adminHandler) start(_ http.ResponseWriter, _ *http.Request) {
+func (h *adminHandler) start(_ *gin.Context) {
 	go h.jobRunner.Start()
 }
 
-func (h *adminHandler) shutdown(_ http.ResponseWriter, _ *http.Request) {
+func (h *adminHandler) shutdown(_ *gin.Context) {
 	h.jobRunner.ShutDown()
 }
 
-func (h *adminHandler) runMinerJob(_ http.ResponseWriter, _ *http.Request) {
-	h.jobRunner.Submit(job.NewHashMiner(difficulty))
+func (h *adminHandler) runMinerJob(c *gin.Context) {
+	var difficulty = 5
+	if d, err := strconv.Atoi(c.Request.URL.Query().Get("difficulty")); err == nil {
+		difficulty = d
+	}
+
+	minerJob := job.NewHashMiner(difficulty)
+	h.jobRunner.Submit(minerJob)
+
+	c.JSON(http.StatusCreated, minerJob.Id())
 }
 
-func (h *adminHandler) interruptCurrentJob(_ http.ResponseWriter, _ *http.Request) {
+func (h *adminHandler) interruptCurrentJob(_ *gin.Context) {
 	h.jobRunner.InterruptCurrentJob()
+}
+
+type uiData struct {
+	Hashes []string `json:"hashes,omitempty"`
+	Now    int64    `json:"now,omitempty"`
+}
+
+func (h *adminHandler) getJobInfo(c *gin.Context) {
+	jobId := c.Param("id")
+	j, exist := h.jobRunner.GetJobById(jobId)
+	if !exist {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	result := j.GetResult()
+	d := &uiData{Hashes: make([]string, 0, len(result)), Now: time.Now().Unix()}
+	for _, v := range result {
+		hashBytes, err := base64.StdEncoding.DecodeString(v.(string))
+		if err != nil {
+			continue
+		}
+		d.Hashes = append(d.Hashes, fmt.Sprintf("%x", hashBytes))
+	}
+
+	c.JSON(http.StatusOK, d)
 }
 
 func NewAdminHandler(taskQ chan<- *module.Task, store module.JobStore) *adminHandler {
@@ -171,6 +210,8 @@ func NewAdminHandler(taskQ chan<- *module.Task, store module.JobStore) *adminHan
 }
 
 func main() {
+	rand.Seed(time.Now().Unix())
+
 	taskQ := make(chan *module.Task, taskQueueCapacity)
 	pool := module.NewWorkerPool()
 	decider := module.NewDecider(pool, taskQ)
