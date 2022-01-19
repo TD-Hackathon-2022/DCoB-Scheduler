@@ -1,6 +1,7 @@
 package job
 
 import (
+	"encoding/base64"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/comm"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/module"
@@ -55,8 +56,10 @@ func (h *HashMiner) handleUpdate(task *module.Task) {
 	if task.Ctx.Status == api.TaskStatus_Finished {
 		h.resultLock.Lock()
 		defer h.resultLock.Unlock()
-		h.resultMap[task.Id] = task.Ctx.FinalData.(string)
-		log.Infof("Miner received reslt: [%s] : %s", task.Id, h.resultMap[task.Id])
+		finalData := task.Ctx.FinalData.(string)
+		h.resultMap[task.Id] = finalData
+		result, _ := base64.StdEncoding.DecodeString(finalData)
+		log.Infof("Miner received reslt: [%s] : %x", task.Id, result)
 	}
 }
 
