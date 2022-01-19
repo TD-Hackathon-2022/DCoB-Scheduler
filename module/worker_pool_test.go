@@ -350,6 +350,8 @@ func TestWorkerPool_ShouldInterruptAllWorkerWithGivenJob(t *testing.T) {
 		wp.pool.Store(addr1, &worker{id: addr1, status: WorkerStatus_Busy, occupiedBy: &jobId0, task: task1, ch: outputCh})
 		addr2 := "127.0.0.1:8083"
 		wp.pool.Store(addr2, &worker{id: addr2, status: WorkerStatus_Busy, occupiedBy: &jobId1, task: task2, ch: outputCh})
+		addr3 := "127.0.0.1:8084"
+		wp.pool.Store(addr2, &worker{id: addr3, status: WorkerStatus_Idle, occupiedBy: &notOccupied, ch: outputCh})
 
 		Convey("when remove worker", func() {
 			wp.InterruptJobTasks(jobId0)

@@ -149,7 +149,7 @@ func (w *WorkerPool) UpdateStatus(id string, payload *api.StatusPayload) error {
 func (w *WorkerPool) InterruptJobTasks(jobId string) {
 	w.pool.Range(func(_, v interface{}) bool {
 		wkr := v.(*worker)
-		if wkr.task.JobId == jobId {
+		if wkr.occupied() && wkr.task.JobId == jobId {
 			wkr.interrupt()
 		}
 
