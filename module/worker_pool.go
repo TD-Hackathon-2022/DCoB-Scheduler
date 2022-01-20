@@ -9,6 +9,7 @@ import (
 )
 
 var notOccupied = "not_occupied"
+var notAvailable = "not_available"
 
 type worker struct {
 	id           string
@@ -99,10 +100,13 @@ func (w *WorkerPool) Remove(id string) {
 	}
 
 	wkr := wkrOri.(*worker)
-	if wkr.occupied() {
+	// occupy with "not_available" to prevent from other goroutine try to apply this ready-to-close worker
+	if !wkr.occupy(notAvailable) {
+		// failed to occupy means this worker have been occupied by some job's task, notify to exit
 		wkr.exitNotify(wkr)
 	}
 
+	// now the worker can be safe delete
 	w.pool.Delete(id)
 }
 

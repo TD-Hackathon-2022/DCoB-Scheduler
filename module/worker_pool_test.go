@@ -277,7 +277,7 @@ func TestWorkerPool_ShouldUpdateWorkerStatusAndNotify(t *testing.T) {
 	})
 }
 
-func TestWorkerPool_ShouldRemoveWorkerAndNotifyExit(t *testing.T) {
+func TestWorkerPool_ShouldRemoveOccupiedWorkerAndNotifyExit(t *testing.T) {
 	Convey("given worker pool", t, func() {
 		notified := false
 		task := &Task{
@@ -303,6 +303,26 @@ func TestWorkerPool_ShouldRemoveWorkerAndNotifyExit(t *testing.T) {
 				_, exist := wp.pool.Load(addr)
 				So(exist, ShouldBeFalse)
 				So(notified, ShouldBeTrue)
+			})
+		})
+	})
+}
+
+func TestWorkerPool_ShouldRemoveIdleWorker(t *testing.T) {
+	Convey("given worker pool", t, func() {
+		addr := "127.0.0.1:8081"
+		wkr := &worker{id: addr, status: WorkerStatus_Idle, occupiedBy: &notOccupied}
+
+		wp := WorkerPool{}
+		wp.pool.Store(addr, wkr)
+
+		Convey("when remove worker", func() {
+			wp.Remove(addr)
+
+			Convey("then worker updated", func() {
+				_, exist := wp.pool.Load(addr)
+				So(exist, ShouldBeFalse)
+				So(*wkr.occupiedBy, ShouldEqual, notAvailable)
 			})
 		})
 	})
