@@ -2,8 +2,11 @@ package module
 
 import (
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
+	"github.com/TD-Hackathon-2022/DCoB-Scheduler/comm"
 	"time"
 )
+
+var log = comm.GetLogger()
 
 type Decider struct {
 	taskQ <-chan *Task
@@ -17,18 +20,19 @@ func (d *Decider) Start() {
 			continue
 		}
 
-		wkr, found := d.pool.apply(task.JobId)
-		if !found {
-			// TODO: deal with retry and backoff policy, this will BURN CPU when no worker available!!!
-			time.Sleep(100 * time.Millisecond)
-			continue
-		}
+		for {
+			wkr, found := d.pool.apply(task.JobId)
+			if !found {
+				// TODO: deal with retry and backoff policy, this will BURN CPU when no worker available!!!
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
 
-		//lint:ignore SA4006 false positive
-		success := wkr.assign(task, d.statusNotify, d.exitNotify)
-		if !success {
-			// TODO: deal with retry
-			continue
+			success := wkr.assign(task, d.statusNotify, d.exitNotify)
+			if !success {
+				log.Fatalf("Occupied worker cannot be assign to antoher job.")
+			}
+			break
 		}
 	}
 }
