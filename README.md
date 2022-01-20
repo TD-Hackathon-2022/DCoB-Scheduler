@@ -198,3 +198,24 @@ This demo will try to mine simple virtual coins
 #### reference
 
 > https://github.com/dockersamples/dockercoins
+
+### Features to be developed:
+**worker**
+- [x] interrupt
+- [ ] really need to keep closing status?
+- [x] choose function from function id
+- [x] display task status in index.html
+- [ ] deploy to github pages
+- [ ] try slim the WASM file size
+
+**scheduler**
+- [ ] apply worker not to burn cpu, but callback to notify worker applied
+- [x] fetch miner job difficulty from http request
+- [ ] provide a web ui to display jobs and tasks
+- [ ] issue functions (WASM bytecode) to worker
+- [ ] support concurrent job execute
+- [ ] replace job queue to priority queue
+- [ ] deploy to server with public ip
+- [ ] store job context to DB or file, then release memory
+- [ ] distributed deploy, may need distributed or cascaded worker pool and queue
+- [ ] try DAG job
