@@ -86,7 +86,7 @@ func (j *JobRunner) GetJobById(jobId string) (job Job, exist bool) {
 	if !exist {
 		return nil, false
 	}
-	return v.(Job), true
+	return v, true
 }
 
 func NewJobRunner(taskQ chan<- *Task, store JobStore) *JobRunner {
