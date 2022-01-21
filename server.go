@@ -33,6 +33,7 @@ const (
 	adminStartUrl            = "/admin/start"
 	adminShutdownUrl         = "/admin/shutdown"
 	adminRunMineJobUrl       = "/admin/job/run-mine"
+	adminRunCalPiJobUrl      = "/admin/job/run-pi"
 	adminInterruptCurrJobUrl = "/admin/job/interrupt-curr"
 	adminGetJobResultUrl     = "/admin/job/:id"
 )
@@ -43,6 +44,7 @@ func BuildServer(wh *workerHandler, ah *adminHandler) *http.Server {
 	router.POST(adminStartUrl, ah.start)
 	router.POST(adminShutdownUrl, ah.shutdown)
 	router.POST(adminRunMineJobUrl, ah.runMinerJob)
+	router.POST(adminRunCalPiJobUrl, ah.runCalPiJob)
 	router.POST(adminInterruptCurrJobUrl, ah.interruptCurrentJob)
 	router.GET(adminGetJobResultUrl, ah.getJobInfo)
 
@@ -173,6 +175,13 @@ func (h *adminHandler) runMinerJob(c *gin.Context) {
 	c.JSON(http.StatusCreated, minerJob.Id())
 }
 
+func (h *adminHandler) runCalPiJob(c *gin.Context) {
+	calPi := job.NewCalPi()
+	h.jobRunner.Submit(calPi)
+
+	c.JSON(http.StatusCreated, calPi.Id())
+}
+
 func (h *adminHandler) interruptCurrentJob(_ *gin.Context) {
 	h.jobRunner.InterruptCurrentJob()
 }
@@ -191,16 +200,20 @@ func (h *adminHandler) getJobInfo(c *gin.Context) {
 	}
 
 	result := j.GetResult()
-	d := &uiData{Hashes: make([]string, 0, len(result)), Now: time.Now().Unix()}
-	for _, v := range result {
-		hashBytes, err := base64.StdEncoding.DecodeString(v.(string))
-		if err != nil {
-			continue
+	switch j.(type) {
+	case *job.HashMiner:
+		d := &uiData{Hashes: make([]string, 0, len(result)), Now: time.Now().Unix()}
+		for _, v := range result {
+			hashBytes, err := base64.StdEncoding.DecodeString(v.(string))
+			if err != nil {
+				continue
+			}
+			d.Hashes = append(d.Hashes, fmt.Sprintf("%x", hashBytes))
 		}
-		d.Hashes = append(d.Hashes, fmt.Sprintf("%x", hashBytes))
+		c.JSON(http.StatusOK, d)
+	case *job.CalPi:
+		c.JSON(http.StatusOK, result)
 	}
-
-	c.JSON(http.StatusOK, d)
 }
 
 func NewAdminHandler(taskQ chan<- *module.Task, store module.JobStore) *adminHandler {

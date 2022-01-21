@@ -59,7 +59,7 @@ func (h *HashMiner) handleUpdate(task *module.Task) {
 		finalData := task.Ctx.FinalData.(string)
 		h.resultMap[task.Id] = finalData
 		result, _ := base64.StdEncoding.DecodeString(finalData)
-		log.Infof("Miner received reslt: [%s] : %x", task.Id, result)
+		log.Infof("Miner received result: [%s] : %x", task.Id, result)
 	}
 }
 
