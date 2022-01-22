@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
-	"fmt"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/comm"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/module"
@@ -47,6 +45,7 @@ func BuildServer(wh *workerHandler, ah *adminHandler) *http.Server {
 	router.POST(adminRunCalPiJobUrl, ah.runCalPiJob)
 	router.POST(adminInterruptCurrJobUrl, ah.interruptCurrentJob)
 	router.GET(adminGetJobResultUrl, ah.getJobInfo)
+	router.Static("/ui", "./ui")
 
 	return &http.Server{
 		Addr:    addr,
@@ -187,8 +186,9 @@ func (h *adminHandler) interruptCurrentJob(_ *gin.Context) {
 }
 
 type uiData struct {
-	Hashes []string `json:"hashes,omitempty"`
-	Now    int64    `json:"now,omitempty"`
+	Coins  int   `json:"coins,omitempty"`
+	Hashes int   `json:"hashes,omitempty"`
+	Now    int64 `json:"now,omitempty"`
 }
 
 func (h *adminHandler) getJobInfo(c *gin.Context) {
@@ -202,14 +202,15 @@ func (h *adminHandler) getJobInfo(c *gin.Context) {
 	result := j.GetResult()
 	switch j.(type) {
 	case *job.HashMiner:
-		d := &uiData{Hashes: make([]string, 0, len(result)), Now: time.Now().Unix()}
+		d := &uiData{Coins: len(result), Hashes: len(result), Now: time.Now().Unix()}
+		/*d := &uiData{Hashes: make([]string, 0, len(result)), Now: time.Now().Unix()}
 		for _, v := range result {
 			hashBytes, err := base64.StdEncoding.DecodeString(v.(string))
 			if err != nil {
 				continue
 			}
 			d.Hashes = append(d.Hashes, fmt.Sprintf("%x", hashBytes))
-		}
+		}*/
 		c.JSON(http.StatusOK, d)
 	case *job.CalPi:
 		c.JSON(http.StatusOK, result)
@@ -234,7 +235,6 @@ func main() {
 	svr := BuildServer(
 		NewWorkerHandler(pool),
 		NewAdminHandler(taskQ, store))
-
 	go log.Fatal(svr.ListenAndServe())
 
 	waitToShutdown(svr)
