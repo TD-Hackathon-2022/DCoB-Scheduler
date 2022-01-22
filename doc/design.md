@@ -37,56 +37,30 @@ Workers (browsers) have those characteristics:
 ## Modules Design
 ### Scheduler
 ![](./sched.jpg)
-
-1. Job: contains job meta and context
-- Job Spilterator: spilt job to tasks and can be called iteratively to get one task
+1. Job Q:
+- job submit to job q, consumed by job runner
+2. Job Runner:
+- fetch and operate job, then control job running
+3. Job: 
+- job meta: id, functions
+- context: task status, job result aggregation
+- spilterator: spilt job as tasks and can be called iteratively to get one task
 2. Task Q:
 - queue
-3. Worker Pool:
-- manage worker's lifecycle
-- monitor workers status
-4. Decider:
+3. Decider:
 - pop task from task q
 - apply some workers from worker pool
 - decide how to assign tasks to workers (by some policy)
-5. Distributer:
-- distribute task to worker
-- send cmd (start / stop / retry / interrupt) to worker
+4. Worker Pool:
+- manage worker's lifecycle
+- monitor workers status
+- send and recv task cmd / data
+5. Server：
+- connect endpoint: websocket + protobuf, communicate with worker
+- admin endpoint: restful http, admin operations
 
 ### Worker
-```
-                                           
-                                           
-    Status                  Cmd Task       
-      ^                        |           
-      |                        |           
-      |                        |           
-------|------------------------|-----------
-      |                        |           
-      |                        v           
- +-------------------------------------+   
- |                                     |   
- |                                     |   
- |             Connector               |   
- |                                     |   
- +-------------------------------|-----+   
-        ^                        |         
-        |                        |         
- +------|-----+           +------v-----+   
- |            |           |            |   
- |  Monitor   <-----------| Controller |   
- |            |           |            |   
- +------------+           +------^-----+   
-                                 |         
-                                 |         
-                                 |         
-                                 |         
-                          +------v-----+   
-                          |            |   
-                          |  Executor  |   
-                          |            |   
-                          +------------+   
-```
+![](./worker.jpg)
 
 1. Connector:
 
@@ -100,19 +74,8 @@ Workers (browsers) have those characteristics:
 - gathering status / result
 
 3. Executor:
-
 - run task
 
-4. Monitor:
-
-- heartbeat / lease
-- task status
-- task result
-
-### Demo
-
-This demo will try to mine simple virtual coins
-
-#### reference
-
-> https://github.com/dockersamples/dockercoins
+4. Functions:
+- built-in function: functions built in workers, can be called directly
+- custom function: real time issued from scheduler, dynamically loaded, WASM byte code
