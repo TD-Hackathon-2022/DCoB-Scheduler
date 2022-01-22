@@ -8,18 +8,16 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
-	"sync"
 	"sync/atomic"
 )
 
 const total = 1000000
 
 type CalPi struct {
-	id         string
-	taskCnt    uint64
-	funcId     string
-	resultLock sync.Mutex
-	sumCnt     uint64
+	id      string
+	taskCnt uint64
+	funcId  string
+	sumCnt  uint64
 }
 
 func (h *CalPi) Id() string {
@@ -58,9 +56,9 @@ func (h *CalPi) TryAdvance(fn func(task *module.Task)) (finished bool) {
 func (h *CalPi) handleUpdate(task *module.Task) {
 	if task.Ctx.Status == api.TaskStatus_Finished {
 		finalData := task.Ctx.FinalData.(string)
-		cnt, _ := strconv.ParseFloat(finalData, 6)
+		cnt, _ := strconv.ParseFloat(finalData, 32)
 		atomic.AddUint64(&h.sumCnt, uint64(cnt))
-		log.Infof("CalPi received result: [%s] : %d, new pi calculated as: %f", task.Id, cnt, h.getPi())
+		log.Infof("CalPi received result: [%s] : %d, new pi calculated as: %f", task.Id, uint64(cnt), h.getPi())
 	}
 }
 
