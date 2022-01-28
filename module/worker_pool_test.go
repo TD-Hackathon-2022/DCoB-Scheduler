@@ -8,19 +8,19 @@ import (
 
 func TestWorkerPool_ShouldAddWorkerToPool(t *testing.T) {
 	Convey("given worker pool", t, func() {
-		wp := WorkerPool{}
+		wp := NewWorkerPool()
 
 		Convey("when add worker", func() {
 			addr := "127.0.0.1:8081"
 			wp.Add(addr, nil)
 
 			Convey("then pool init new worker", func() {
-				w, exist := wp.pool.Load(addr)
+				w, exist := wp.pool[addr]
 				So(exist, ShouldBeTrue)
 				So(w, ShouldHaveSameTypeAs, &worker{})
-				So(w.(*worker).id, ShouldEqual, addr)
-				So(w.(*worker).status, ShouldEqual, WorkerStatus_Idle)
-				So(w.(*worker).occupiedBy, ShouldEqual, &notOccupied)
+				So(w.id, ShouldEqual, addr)
+				So(w.status, ShouldEqual, WorkerStatus_Idle)
+				So(w.occupiedBy, ShouldEqual, &notOccupied)
 			})
 		})
 	})
@@ -28,17 +28,17 @@ func TestWorkerPool_ShouldAddWorkerToPool(t *testing.T) {
 
 func TestWorkerPool_ShouldDoNothingWhenAddWorkerThatAlreadyInPool(t *testing.T) {
 	Convey("given worker pool", t, func() {
-		wp := WorkerPool{}
+		wp := NewWorkerPool()
 		addr := "127.0.0.1:8081"
-		wp.pool.Store(addr, &worker{id: "fake-worker", status: WorkerStatus_Busy})
+		wp.pool[addr] = &worker{id: "fake-worker", status: WorkerStatus_Busy}
 
 		Convey("when add worker", func() {
 			wp.Add(addr, nil)
 
 			Convey("then do nothing", func() {
-				w, _ := wp.pool.Load(addr)
-				So(w.(*worker).id, ShouldEqual, "fake-worker")
-				So(w.(*worker).status, ShouldEqual, WorkerStatus_Busy)
+				w, _ := wp.pool[addr]
+				So(w.id, ShouldEqual, "fake-worker")
+				So(w.status, ShouldEqual, WorkerStatus_Busy)
 			})
 		})
 	})
@@ -46,15 +46,21 @@ func TestWorkerPool_ShouldDoNothingWhenAddWorkerThatAlreadyInPool(t *testing.T) 
 
 func TestWorkerPool_ShouldApplyWorker(t *testing.T) {
 	Convey("given worker pool", t, func() {
-		wp := WorkerPool{}
+		wp := NewWorkerPool()
 		addr0 := "127.0.0.1:8081"
 		job0 := "job-0"
-		wp.pool.Store(addr0, &worker{id: addr0, status: WorkerStatus_Idle, occupiedBy: &job0})
+		w0 := &worker{id: addr0, status: WorkerStatus_Idle, occupiedBy: &job0}
+		wp.pool[addr0] = w0
+		wp.freeList.PushFront(w0)
 		addr1 := "127.0.0.1:8082"
-		wp.pool.Store(addr1, &worker{id: addr1, status: WorkerStatus_Idle, occupiedBy: &notOccupied})
+		w1 := &worker{id: addr1, status: WorkerStatus_Idle, occupiedBy: &notOccupied}
+		wp.pool[addr1] = w1
+		wp.freeList.PushFront(w1)
 		addr2 := "127.0.0.1:8083"
 		job1 := "job-1"
-		wp.pool.Store(addr2, &worker{id: addr2, status: WorkerStatus_Idle, occupiedBy: &job1})
+		w2 := &worker{id: addr2, status: WorkerStatus_Idle, occupiedBy: &job1}
+		wp.pool[addr2] = w2
+		wp.freeList.PushFront(w2)
 
 		Convey("when try apply a worker", func() {
 			w, found := wp.apply("job-id-2")
@@ -70,16 +76,16 @@ func TestWorkerPool_ShouldApplyWorker(t *testing.T) {
 
 func TestWorkerPool_ShouldNotApplyWorkerIfNotAvailable(t *testing.T) {
 	Convey("given worker pool", t, func() {
-		wp := WorkerPool{}
+		wp := NewWorkerPool()
 		addr0 := "127.0.0.1:8081"
 		job0 := "job-0"
-		wp.pool.Store(addr0, &worker{id: addr0, status: WorkerStatus_Idle, occupiedBy: &job0})
+		wp.pool[addr0] = &worker{id: addr0, status: WorkerStatus_Idle, occupiedBy: &job0}
 		addr1 := "127.0.0.1:8082"
 		job1 := "job-1"
-		wp.pool.Store(addr1, &worker{id: addr1, status: WorkerStatus_Idle, occupiedBy: &job1})
+		wp.pool[addr1] = &worker{id: addr1, status: WorkerStatus_Idle, occupiedBy: &job1}
 		addr2 := "127.0.0.1:8083"
 		job2 := "job-2"
-		wp.pool.Store(addr2, &worker{id: addr2, status: WorkerStatus_Busy, occupiedBy: &job2})
+		wp.pool[addr2] = &worker{id: addr2, status: WorkerStatus_Busy, occupiedBy: &job2}
 
 		Convey("when try apply a worker", func() {
 			_, found := wp.apply("job-id-3")
@@ -93,7 +99,7 @@ func TestWorkerPool_ShouldNotApplyWorkerIfNotAvailable(t *testing.T) {
 
 func TestWorkerPool_ShouldNotApplyWorkerIfNoWorker(t *testing.T) {
 	Convey("given empty worker pool", t, func() {
-		wp := WorkerPool{}
+		wp := NewWorkerPool()
 
 		Convey("when try apply a worker", func() {
 			_, found := wp.apply("job-id-3")
@@ -107,9 +113,11 @@ func TestWorkerPool_ShouldNotApplyWorkerIfNoWorker(t *testing.T) {
 
 func TestWorkerPool_ShouldApplyWorkerThenRelease(t *testing.T) {
 	Convey("given worker pool", t, func() {
-		wp := WorkerPool{}
+		wp := NewWorkerPool()
 		addr0 := "127.0.0.1:8081"
-		wp.pool.Store(addr0, &worker{id: addr0, status: WorkerStatus_Idle, occupiedBy: &notOccupied})
+		w := &worker{id: addr0, status: WorkerStatus_Idle, occupiedBy: &notOccupied}
+		wp.pool[addr0] = w
+		wp.freeList.PushFront(w)
 
 		Convey("when try apply a worker", func() {
 			w, found := wp.apply("job-id-0")
@@ -250,12 +258,14 @@ func TestWorkerPool_ShouldUpdateWorkerStatusAndNotify(t *testing.T) {
 			FuncId: "fake-func-id",
 		}
 
-		wp := WorkerPool{}
+		wp := NewWorkerPool()
 		addr := "127.0.0.1:8081"
 		notified := false
-		wp.pool.Store(addr, &worker{id: addr, status: WorkerStatus_Busy, occupiedBy: &task.JobId, task: task, statusNotify: func(*worker, *StatusPayload) {
+		w := &worker{id: addr, status: WorkerStatus_Busy, occupiedBy: &task.JobId, task: task, statusNotify: func(*worker, *StatusPayload) {
 			notified = true
-		}})
+		}}
+		wp.pool[addr] = w
+		wp.freeList.PushFront(w)
 
 		Convey("when update status", func() {
 			status := &StatusPayload{
@@ -268,9 +278,9 @@ func TestWorkerPool_ShouldUpdateWorkerStatusAndNotify(t *testing.T) {
 			_ = wp.UpdateStatus(addr, status)
 
 			Convey("then worker updated", func() {
-				w, _ := wp.pool.Load(addr)
-				So(w.(*worker).id, ShouldEqual, addr)
-				So(w.(*worker).status, ShouldEqual, WorkerStatus_Idle)
+				w, _ := wp.pool[addr]
+				So(w.id, ShouldEqual, addr)
+				So(w.status, ShouldEqual, WorkerStatus_Idle)
 				So(notified, ShouldBeTrue)
 			})
 		})
@@ -290,17 +300,19 @@ func TestWorkerPool_ShouldRemoveOccupiedWorkerAndNotifyExit(t *testing.T) {
 			FuncId: "fake-func-id",
 		}
 
-		wp := WorkerPool{}
+		wp := NewWorkerPool()
 		addr := "127.0.0.1:8081"
-		wp.pool.Store(addr, &worker{id: addr, status: WorkerStatus_Busy, occupiedBy: &task.JobId, task: task, exitNotify: func(*worker) {
+		w := &worker{id: addr, status: WorkerStatus_Busy, occupiedBy: &task.JobId, task: task, exitNotify: func(*worker) {
 			notified = true
-		}})
+		}}
+		wp.pool[addr] = w
+		wp.freeList.PushFront(w)
 
 		Convey("when remove worker", func() {
 			wp.Remove(addr)
 
 			Convey("then worker updated", func() {
-				_, exist := wp.pool.Load(addr)
+				_, exist := wp.pool[addr]
 				So(exist, ShouldBeFalse)
 				So(notified, ShouldBeTrue)
 			})
@@ -313,14 +325,15 @@ func TestWorkerPool_ShouldRemoveIdleWorker(t *testing.T) {
 		addr := "127.0.0.1:8081"
 		wkr := &worker{id: addr, status: WorkerStatus_Idle, occupiedBy: &notOccupied}
 
-		wp := WorkerPool{}
-		wp.pool.Store(addr, wkr)
+		wp := NewWorkerPool()
+		wp.pool[addr] = wkr
+		wp.freeList.PushFront(wkr)
 
 		Convey("when remove worker", func() {
 			wp.Remove(addr)
 
 			Convey("then worker updated", func() {
-				_, exist := wp.pool.Load(addr)
+				_, exist := wp.pool[addr]
 				So(exist, ShouldBeFalse)
 				So(*wkr.occupiedBy, ShouldEqual, notAvailable)
 			})
@@ -363,15 +376,23 @@ func TestWorkerPool_ShouldInterruptAllWorkerWithGivenJob(t *testing.T) {
 		}
 
 		outputCh := make(chan *Msg, 5)
-		wp := WorkerPool{}
+		wp := NewWorkerPool()
 		addr0 := "127.0.0.1:8081"
-		wp.pool.Store(addr0, &worker{id: addr0, status: WorkerStatus_Busy, occupiedBy: &jobId0, task: task0, ch: outputCh})
+		w0 := &worker{id: addr0, status: WorkerStatus_Busy, occupiedBy: &jobId0, task: task0, ch: outputCh}
+		wp.pool[addr0] = w0
+		wp.freeList.PushFront(w0)
 		addr1 := "127.0.0.1:8082"
-		wp.pool.Store(addr1, &worker{id: addr1, status: WorkerStatus_Busy, occupiedBy: &jobId0, task: task1, ch: outputCh})
+		w1 := &worker{id: addr1, status: WorkerStatus_Busy, occupiedBy: &jobId0, task: task1, ch: outputCh}
+		wp.pool[addr1] = w1
+		wp.freeList.PushFront(w1)
 		addr2 := "127.0.0.1:8083"
-		wp.pool.Store(addr2, &worker{id: addr2, status: WorkerStatus_Busy, occupiedBy: &jobId1, task: task2, ch: outputCh})
+		w2 := &worker{id: addr2, status: WorkerStatus_Busy, occupiedBy: &jobId1, task: task2, ch: outputCh}
+		wp.pool[addr2] = w2
+		wp.freeList.PushFront(w2)
 		addr3 := "127.0.0.1:8084"
-		wp.pool.Store(addr2, &worker{id: addr3, status: WorkerStatus_Idle, occupiedBy: &notOccupied, ch: outputCh})
+		w3 := &worker{id: addr3, status: WorkerStatus_Idle, occupiedBy: &notOccupied, ch: outputCh}
+		wp.pool[addr2] = w3
+		wp.freeList.PushFront(w3)
 
 		Convey("when remove worker", func() {
 			wp.InterruptJobTasks(jobId0)

@@ -22,8 +22,9 @@ func TestDecider_ShouldOccupyAndAssignTaskToWorker(t *testing.T) {
 
 		addr := "127.0.0.1:8081"
 		w := &worker{id: addr, status: WorkerStatus_Idle, occupiedBy: &notOccupied}
-		wp := &WorkerPool{}
-		wp.pool.Store(addr, w)
+		wp := NewWorkerPool()
+		wp.pool[addr] = w
+		wp.freeList.PushFront(w)
 
 		taskQ := make(chan *Task, 1)
 		taskQ <- task
@@ -61,7 +62,7 @@ func TestDecider_ShouldUpdateTaskStatusThenCallTaskHandlerWhenNotify(t *testing.
 			},
 		}
 
-		wp := &WorkerPool{}
+		wp := NewWorkerPool()
 		decider := NewDecider(wp, nil)
 
 		Convey("when notify with finished status", func() {
@@ -114,7 +115,7 @@ func TestDecider_ShouldReleaseWorkerWhenNotifyWithTaskNotRunningStatus(t *testin
 			},
 		}
 
-		wp := &WorkerPool{}
+		wp := NewWorkerPool()
 		decider := NewDecider(wp, nil)
 
 		Convey("when notify", func() {

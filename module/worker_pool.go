@@ -1,6 +1,7 @@
 package module
 
 import (
+	"container/list"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
 	"github.com/pkg/errors"
 	"sync"
@@ -76,30 +77,37 @@ func (w *worker) release() {
 }
 
 type WorkerPool struct {
-	pool sync.Map
+	pool     map[string]*worker
+	freeList *list.List
+	lock     sync.RWMutex
 }
 
 func (w *WorkerPool) Add(id string, ch chan *api.Msg) {
-	_, exist := w.pool.Load(id)
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	_, exist := w.pool[id]
 	if exist {
 		return
 	}
 
-	w.pool.Store(id, &worker{
+	newWorker := &worker{
 		id:         id,
 		status:     api.WorkerStatus_Idle,
 		occupiedBy: &notOccupied,
 		ch:         ch,
-	})
+	}
+	w.pool[id] = newWorker
+	w.freeList.PushFront(newWorker)
 }
 
 func (w *WorkerPool) Remove(id string) {
-	wkrOri, exist := w.pool.Load(id)
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	wkr, exist := w.pool[id]
 	if !exist {
 		return
 	}
 
-	wkr := wkrOri.(*worker)
 	// occupy with "not_available" to prevent from other goroutine try to apply this ready-to-close worker
 	if !wkr.occupy(notAvailable) {
 		// failed to occupy means this worker have been occupied by some job's task, notify to exit
@@ -107,36 +115,56 @@ func (w *WorkerPool) Remove(id string) {
 	}
 
 	// now the worker can be safe delete
-	w.pool.Delete(id)
+	delete(w.pool, id)
+
+	// no need to clear free list, we can eliminate it when the "not available" worker be applied
 }
 
 func (w *WorkerPool) apply(jobId string) (wkr *worker, found bool) {
-	w.pool.Range(func(_, v interface{}) bool {
-		wkr = v.(*worker)
-		if wkr.occupy(jobId) {
-			return false
+	w.lock.Lock()
+	defer w.lock.Unlock()
+
+	for {
+		e := w.freeList.Back()
+		if e == nil {
+			return nil, false
 		}
 
-		// clear wkr
-		wkr = nil
-		return true
-	})
+		wkr = w.freeList.Remove(e).(*worker)
+		if wkr.occupiedBy == &notAvailable {
+			// ignore worker that already removed
+			continue
+		}
 
-	return wkr, wkr != nil
+		if !wkr.occupy(jobId) {
+			continue
+		}
+
+		break
+	}
+
+	return wkr, true
 }
 
 func (w *WorkerPool) returnBack(wkr *worker) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+
 	wkr.status = api.WorkerStatus_Idle
 	wkr.release()
+
+	w.freeList.PushFront(wkr)
 }
 
 func (w *WorkerPool) UpdateStatus(id string, payload *api.StatusPayload) error {
-	wkrOri, exist := w.pool.Load(id)
+	w.lock.RLock()
+	wkr, exist := w.pool[id]
+	w.lock.RUnlock()
+
 	if !exist {
 		return errors.Errorf("Worker id: %s not regsitered, no context found.", id)
 	}
 
-	wkr := wkrOri.(*worker)
 	if !wkr.occupied() {
 		return errors.Errorf("Worker id: %s not occupied", id)
 	}
@@ -151,16 +179,19 @@ func (w *WorkerPool) UpdateStatus(id string, payload *api.StatusPayload) error {
 }
 
 func (w *WorkerPool) InterruptJobTasks(jobId string) {
-	w.pool.Range(func(_, v interface{}) bool {
-		wkr := v.(*worker)
+	w.lock.RLock()
+	defer w.lock.RUnlock()
+
+	for _, wkr := range w.pool {
 		if wkr.occupied() && wkr.task.JobId == jobId {
 			wkr.interrupt()
 		}
-
-		return true
-	})
+	}
 }
 
 func NewWorkerPool() *WorkerPool {
-	return &WorkerPool{}
+	return &WorkerPool{
+		pool:     make(map[string]*worker),
+		freeList: list.New(),
+	}
 }
