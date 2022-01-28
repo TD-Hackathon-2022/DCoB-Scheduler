@@ -76,6 +76,10 @@ func (w *worker) release() {
 	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&w.occupiedBy)), unsafe.Pointer(&notOccupied))
 }
 
+func (w *worker) moribund() {
+	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&w.occupiedBy)), unsafe.Pointer(&notAvailable))
+}
+
 type WorkerPool struct {
 	pool     map[string]*worker
 	freeList *list.List
@@ -118,6 +122,7 @@ func (w *WorkerPool) Remove(id string) {
 	delete(w.pool, id)
 
 	// no need to clear free list, we can eliminate it when the "not available" worker be applied
+	wkr.moribund()
 }
 
 func (w *WorkerPool) apply(jobId string) (wkr *worker, found bool) {
@@ -131,7 +136,7 @@ func (w *WorkerPool) apply(jobId string) (wkr *worker, found bool) {
 		}
 
 		wkr = w.freeList.Remove(e).(*worker)
-		if wkr.occupiedBy == &notAvailable {
+		if *wkr.atomicGetOccupiedBy() == notAvailable {
 			// ignore worker that already removed
 			continue
 		}

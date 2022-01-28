@@ -21,6 +21,9 @@ func TestWorkerPool_ShouldAddWorkerToPool(t *testing.T) {
 				So(w.id, ShouldEqual, addr)
 				So(w.status, ShouldEqual, WorkerStatus_Idle)
 				So(w.occupiedBy, ShouldEqual, &notOccupied)
+
+				So(wp.freeList.Len(), ShouldEqual, 1)
+				So(wp.freeList.Back().Value.(*worker), ShouldEqual, w)
 			})
 		})
 	})
@@ -30,7 +33,9 @@ func TestWorkerPool_ShouldDoNothingWhenAddWorkerThatAlreadyInPool(t *testing.T) 
 	Convey("given worker pool", t, func() {
 		wp := NewWorkerPool()
 		addr := "127.0.0.1:8081"
-		wp.pool[addr] = &worker{id: "fake-worker", status: WorkerStatus_Busy}
+		w := &worker{id: "fake-worker", status: WorkerStatus_Busy}
+		wp.pool[addr] = w
+		wp.freeList.PushFront(w)
 
 		Convey("when add worker", func() {
 			wp.Add(addr, nil)
@@ -39,6 +44,7 @@ func TestWorkerPool_ShouldDoNothingWhenAddWorkerThatAlreadyInPool(t *testing.T) 
 				w, _ := wp.pool[addr]
 				So(w.id, ShouldEqual, "fake-worker")
 				So(w.status, ShouldEqual, WorkerStatus_Busy)
+				So(wp.freeList.Len(), ShouldEqual, 1)
 			})
 		})
 	})
@@ -126,6 +132,7 @@ func TestWorkerPool_ShouldApplyWorkerThenRelease(t *testing.T) {
 				So(found, ShouldBeTrue)
 				So(w.id, ShouldEqual, addr0)
 				So(*w.occupiedBy, ShouldEqual, "job-id-0")
+				So(wp.freeList.Len(), ShouldEqual, 0)
 			})
 
 			wp.returnBack(w)
@@ -133,6 +140,7 @@ func TestWorkerPool_ShouldApplyWorkerThenRelease(t *testing.T) {
 			Convey("can returnBack", func() {
 				So(w.status, ShouldEqual, WorkerStatus_Idle)
 				So(w.occupiedBy, ShouldEqual, &notOccupied)
+				So(wp.freeList.Len(), ShouldEqual, 1)
 			})
 		})
 	})
@@ -315,6 +323,7 @@ func TestWorkerPool_ShouldRemoveOccupiedWorkerAndNotifyExit(t *testing.T) {
 				_, exist := wp.pool[addr]
 				So(exist, ShouldBeFalse)
 				So(notified, ShouldBeTrue)
+				So(*w.occupiedBy, ShouldEqual, notAvailable)
 			})
 		})
 	})
