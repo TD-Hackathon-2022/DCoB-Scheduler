@@ -1,16 +1,20 @@
 .PHONY: all
 all: clean dev
 
-dev: fmt gen-api test
+dev: fmt check gen-api test
 
 fmt:
 	go fmt ./...
+
+check:
+	staticcheck .
 
 build:
 	go build
 
 linuxbuild:
 	GOOS=linux GOARCH=amd64 go build
+
 test:
 	go test -tags=test ./...
 

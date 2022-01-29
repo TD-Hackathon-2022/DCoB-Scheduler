@@ -41,7 +41,7 @@ func TestWorkerPool_ShouldDoNothingWhenAddWorkerThatAlreadyInPool(t *testing.T) 
 			wp.Add(addr, nil)
 
 			Convey("then do nothing", func() {
-				w, _ := wp.pool[addr]
+				w := wp.pool[addr]
 				So(w.id, ShouldEqual, "fake-worker")
 				So(w.status, ShouldEqual, WorkerStatus_Busy)
 				So(wp.freeList.Len(), ShouldEqual, 1)
@@ -286,7 +286,7 @@ func TestWorkerPool_ShouldUpdateWorkerStatusAndNotify(t *testing.T) {
 			_ = wp.UpdateStatus(addr, status)
 
 			Convey("then worker updated", func() {
-				w, _ := wp.pool[addr]
+				w := wp.pool[addr]
 				So(w.id, ShouldEqual, addr)
 				So(w.status, ShouldEqual, WorkerStatus_Idle)
 				So(notified, ShouldBeTrue)
