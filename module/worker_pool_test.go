@@ -3,7 +3,10 @@ package module
 import (
 	. "github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
 	. "github.com/smartystreets/goconvey/convey"
+	"runtime"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestWorkerPool_ShouldAddWorkerToPool(t *testing.T) {
@@ -50,6 +53,48 @@ func TestWorkerPool_ShouldDoNothingWhenAddWorkerThatAlreadyInPool(t *testing.T) 
 	})
 }
 
+func TestWorkerPool_ShouldBlockApplyWorker(t *testing.T) {
+	Convey("given worker pool", t, func() {
+		wp := NewWorkerPool()
+		addr := "127.0.0.1:8081"
+		w1 := &worker{id: addr, status: WorkerStatus_Idle, occupiedBy: &notOccupied}
+		wp.pool[addr] = w1
+		wp.freeList.PushFront(w1)
+		job0 := "job-id-0"
+		job1 := "job-id-1"
+
+		Convey("when try apply a worker", func() {
+			wkr := wp.blockApply(job0)
+			Convey("then worker should be returned without block", func() {
+				So(wkr.id, ShouldEqual, addr)
+				So(*wkr.occupiedBy, ShouldEqual, job0)
+			})
+
+			wg := sync.WaitGroup{}
+			wg.Add(1)
+			go func() {
+				wkr = wp.blockApply(job1)
+				wg.Done()
+			}()
+			runtime.Gosched()
+			time.Sleep(time.Second)
+
+			Convey("should still blocked and not apply", func() {
+				So(wkr.id, ShouldEqual, addr)
+				So(*wkr.occupiedBy, ShouldEqual, job0)
+			})
+
+			wp.returnBack(wkr)
+			runtime.Gosched()
+			wg.Wait()
+			Convey("then worker should be returned then apply again", func() {
+				So(wkr.id, ShouldEqual, addr)
+				So(*wkr.occupiedBy, ShouldEqual, job1)
+			})
+		})
+	})
+}
+
 func TestWorkerPool_ShouldApplyWorker(t *testing.T) {
 	Convey("given worker pool", t, func() {
 		wp := NewWorkerPool()
@@ -69,12 +114,13 @@ func TestWorkerPool_ShouldApplyWorker(t *testing.T) {
 		wp.freeList.PushFront(w2)
 
 		Convey("when try apply a worker", func() {
-			w, found := wp.apply("job-id-2")
+			wFirst := wp.chooseFreeWorker("job-id-2")
+			wSecond := wp.chooseFreeWorker("job-id-2")
 
 			Convey("then worker1 should be returned", func() {
-				So(found, ShouldBeTrue)
-				So(w.id, ShouldEqual, addr1)
-				So(*w.occupiedBy, ShouldEqual, "job-id-2")
+				So(wFirst, ShouldBeNil)
+				So(wSecond.id, ShouldEqual, addr1)
+				So(*wSecond.occupiedBy, ShouldEqual, "job-id-2")
 			})
 		})
 	})
@@ -94,10 +140,10 @@ func TestWorkerPool_ShouldNotApplyWorkerIfNotAvailable(t *testing.T) {
 		wp.pool[addr2] = &worker{id: addr2, status: WorkerStatus_Busy, occupiedBy: &job2}
 
 		Convey("when try apply a worker", func() {
-			_, found := wp.apply("job-id-3")
+			wkr := wp.chooseFreeWorker("job-id-3")
 
 			Convey("then no worker should be returned", func() {
-				So(found, ShouldBeFalse)
+				So(wkr, ShouldBeNil)
 			})
 		})
 	})
@@ -108,10 +154,10 @@ func TestWorkerPool_ShouldNotApplyWorkerIfNoWorker(t *testing.T) {
 		wp := NewWorkerPool()
 
 		Convey("when try apply a worker", func() {
-			_, found := wp.apply("job-id-3")
+			wkr := wp.chooseFreeWorker("job-id-3")
 
 			Convey("then no worker should be returned", func() {
-				So(found, ShouldBeFalse)
+				So(wkr, ShouldBeNil)
 			})
 		})
 	})

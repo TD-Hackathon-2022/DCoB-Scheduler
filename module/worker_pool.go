@@ -84,6 +84,7 @@ type WorkerPool struct {
 	pool     map[string]*worker
 	freeList *list.List
 	lock     sync.RWMutex
+	freeCond *sync.Cond
 }
 
 func (w *WorkerPool) Add(id string, ch chan *api.Msg) {
@@ -102,6 +103,7 @@ func (w *WorkerPool) Add(id string, ch chan *api.Msg) {
 	}
 	w.pool[id] = newWorker
 	w.freeList.PushFront(newWorker)
+	w.freeCond.Broadcast()
 }
 
 func (w *WorkerPool) Remove(id string) {
@@ -130,25 +132,54 @@ func (w *WorkerPool) apply(jobId string) (wkr *worker, found bool) {
 	defer w.lock.Unlock()
 
 	for {
-		e := w.freeList.Back()
-		if e == nil {
+		if w.freeList.Len() == 0 {
 			return nil, false
 		}
 
-		wkr = w.freeList.Remove(e).(*worker)
-		if *wkr.atomicGetOccupiedBy() == notAvailable {
-			// ignore worker that already removed
+		wkr := w.chooseFreeWorker(jobId)
+		if wkr == nil {
 			continue
 		}
 
-		if !wkr.occupy(jobId) {
+		return wkr, true
+	}
+}
+
+func (w *WorkerPool) blockApply(jobId string) *worker {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+
+	for {
+		if w.freeList.Len() == 0 {
+			w.freeCond.Wait()
+		}
+
+		wkr := w.chooseFreeWorker(jobId)
+		if wkr == nil {
 			continue
 		}
 
-		break
+		return wkr
+	}
+}
+
+func (w *WorkerPool) chooseFreeWorker(jobId string) *worker {
+	e := w.freeList.Back()
+	if e == nil {
+		return nil
 	}
 
-	return wkr, true
+	wkr := w.freeList.Remove(e).(*worker)
+	if *wkr.atomicGetOccupiedBy() == notAvailable {
+		// ignore worker that already removed
+		return nil
+	}
+
+	if !wkr.occupy(jobId) {
+		return nil
+	}
+
+	return wkr
 }
 
 func (w *WorkerPool) returnBack(wkr *worker) {
@@ -159,6 +190,7 @@ func (w *WorkerPool) returnBack(wkr *worker) {
 	wkr.release()
 
 	w.freeList.PushFront(wkr)
+	w.freeCond.Broadcast()
 }
 
 func (w *WorkerPool) UpdateStatus(id string, payload *api.StatusPayload) error {
@@ -195,8 +227,10 @@ func (w *WorkerPool) InterruptJobTasks(jobId string) {
 }
 
 func NewWorkerPool() *WorkerPool {
-	return &WorkerPool{
+	pool := &WorkerPool{
 		pool:     make(map[string]*worker),
 		freeList: list.New(),
 	}
+	pool.freeCond = sync.NewCond(&pool.lock)
+	return pool
 }
