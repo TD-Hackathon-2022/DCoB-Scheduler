@@ -3,7 +3,6 @@ package module
 import (
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/api"
 	"github.com/TD-Hackathon-2022/DCoB-Scheduler/comm"
-	"time"
 )
 
 var log = comm.GetLogger()
@@ -20,19 +19,10 @@ func (d *Decider) Start() {
 			continue
 		}
 
-		for {
-			wkr, found := d.pool.apply(task.JobId)
-			if !found {
-				// TODO: deal with retry and backoff policy, this will BURN CPU when no worker available!!!
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
-
-			success := wkr.assign(task, d.statusNotify, d.exitNotify)
-			if !success {
-				log.Fatalf("Occupied worker cannot be assign to antoher job.")
-			}
-			break
+		wkr := d.pool.blockApply(task.JobId)
+		success := wkr.assign(task, d.statusNotify, d.exitNotify)
+		if !success {
+			log.Fatalf("Occupied worker cannot be assign to antoher job.")
 		}
 	}
 }

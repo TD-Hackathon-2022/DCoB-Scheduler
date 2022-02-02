@@ -24,7 +24,7 @@ Usage such idle computing power, we have so many things can do.
 - [ ] try slim the WASM file size
 
 **scheduler**
-- [ ] apply worker not to burn cpu, but callback to notify worker applied
+- [x] apply worker not to burn cpu, but callback to notify worker applied
 - [x] fetch miner job difficulty from http request
 - [x] provide a web ui to display jobs and tasks
 - [x] issue functions (WASM bytecode) to worker
